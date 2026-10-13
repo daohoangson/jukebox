@@ -74,18 +74,21 @@ export async function search(query) {
   const found = await api('search', {
     part: 'snippet', type: 'video', videoEmbeddable: 'true', maxResults: '10', q,
   });
-  const ids = found.items.map((i) => i.id.videoId);
+  // type=video isn't always honored (channels can slip in), so keep real videos only
+  const items = found.items.filter((i) => i.id?.videoId);
+  const ids = items.map((i) => i.id.videoId);
   const details = ids.length ? await api('videos', { part: 'contentDetails', id: ids.join(',') }) : { items: [] };
   const durations = Object.fromEntries(details.items.map((v) => [v.id, isoToSeconds(v.contentDetails.duration)]));
 
-  const results = found.items.map((i) => ({
+  const results = items.map((i) => ({
     videoId: i.id.videoId,
     title: decodeEntities(i.snippet.title),
     channel: decodeEntities(i.snippet.channelTitle),
-    thumb: i.snippet.thumbnails.medium?.url || i.snippet.thumbnails.default?.url,
+    thumb: i.snippet.thumbnails?.medium?.url || `https://i.ytimg.com/vi/${i.id.videoId}/mqdefault.jpg`,
     duration: durations[i.id.videoId] ?? null,
   }));
-  setDoc(cacheRef, { results, at: Date.now() }).catch(() => {});
+  // Caching is best-effort; setDoc can also throw synchronously on bad data
+  try { setDoc(cacheRef, { results, at: Date.now() }).catch(() => {}); } catch {}
   return results;
 }
 

@@ -54,7 +54,7 @@
     import { $, toast, songRow, formatDuration } from './common.js';
 
     // Guest link + QR
-    const guestUrl = new URL('./', location.href).href;
+    const guestUrl = new URL(`./${location.search}`, location.href).href; // keep ?live in local dev
     $('#guest-link').href = $('#guest-link').textContent = guestUrl;
     new QRCode($('#qr'), { text: guestUrl, width: 160, height: 160 });
     if (usingEmulator) toast('Using local Firestore emulator');

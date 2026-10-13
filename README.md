@@ -26,7 +26,7 @@ Guest (index.html) ──► Firestore: jukebox/state + jukebox/state/queue ─�
 1. Create a project at <https://console.firebase.google.com>.
 2. **Build → Firestore Database → Create database** (production mode, any region).
 3. **Rules** tab → paste [`firestore.rules`](firestore.rules) → Publish. Don't use "test mode": its rules expire after 30 days.
-4. **Project settings → Your apps → Add app → Web**. Copy `apiKey`, `authDomain`, `projectId` and `appId` into `firebaseConfig` in [`config.js`](config.js).
+4. **Project settings → Your apps → Add app → Web**. Copy `apiKey`, `authDomain`, `projectId` and `appId` into `firebaseConfig` in [`config.js`](config.js). If you named the database, set `firestoreDatabaseId` to that name; otherwise use `(default)`. Rules are per database, so publish them on the one you use.
 
 ### 2. YouTube Data API key (search, optional)
 
@@ -55,7 +55,7 @@ For the host device:
 
 ## Local development
 
-No Firebase project needed: with `config.js` left empty, pages served from `localhost` use the Firestore emulator.
+Pages served from `localhost` use the local Firestore emulator, so testing never touches the live queue. You don't need a Firebase project for this. Add `?live` to the URL (e.g. `host.html?live`) to test against the real project instead. The YouTube search key needs `http://localhost:8000/*` in its allowed websites.
 
 ```bash
 npx firebase-tools emulators:start --only firestore --project demo-jukebox
