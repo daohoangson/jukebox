@@ -2,123 +2,195 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#141312" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
   <title>Jukebox</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
-  <main>
-    <header>
+<body class="guest">
+  <div class="top">
+    <header class="bar">
       <h1>🎵 Jukebox</h1>
-      <label class="name">Your name <input id="name" maxlength="30" autocomplete="nickname"></label>
+      <button id="name-chip" type="button" class="chip"></button>
     </header>
 
-    <section class="card now">
-      <img id="now-thumb" alt="" hidden>
+    <section class="now card">
+      <img id="now-thumb" alt="">
       <div class="info">
-        <div class="label">Now playing</div>
         <div id="now-title" class="title">Nothing playing</div>
-        <div id="now-meta" class="meta"></div>
+        <div id="now-meta" class="meta">Add a song to get started</div>
       </div>
-      <div class="controls">
-        <button id="toggle" title="Play / pause">⏯</button>
-        <button id="skip" title="Skip">⏭</button>
-      </div>
+      <div id="now-controls" class="controls"></div>
     </section>
 
-    <form id="search-form" class="search">
-      <input id="search-input" type="search" placeholder="Search songs or paste a YouTube link" required enterkeyhint="search">
-      <button>Go</button>
+    <form id="search-form" class="search" role="search">
+      <span class="search-icon"></span>
+      <input id="search-input" type="search" placeholder="Search songs or paste a link" required
+             enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <span id="search-clear"></span>
     </form>
-    <ul id="results" class="list"></ul>
+  </div>
 
-    <h2>Up next <span id="queue-count" class="count"></span></h2>
-    <ul id="queue" class="list"></ul>
-    <p id="queue-empty" class="empty">Queue is empty. Add something!</p>
+  <main>
+    <section id="results-view" hidden>
+      <div class="section-head">
+        <h2 id="results-title">Results</h2>
+        <button id="results-done" type="button" class="ghost small">Done</button>
+      </div>
+      <ul id="results" class="list"></ul>
+    </section>
+
+    <section id="queue-view">
+      <div class="section-head"><h2>Up next <span id="queue-count" class="count"></span></h2></div>
+      <ul id="queue" class="list"></ul>
+      <p id="queue-empty" class="empty">The queue is empty. Search above to add something.</p>
+    </section>
   </main>
+
+  <dialog id="name-dialog">
+    <form method="dialog">
+      <h2>What's your name?</h2>
+      <p class="meta">Shown next to the songs you add.</p>
+      <input id="name-input" maxlength="30" autocomplete="nickname" enterkeyhint="done" placeholder="Your name">
+      <div class="dialog-actions">
+        <button type="button" class="ghost" onclick="this.closest('dialog').close('skip')">Skip</button>
+        <button value="ok">Save</button>
+      </div>
+    </form>
+  </dialog>
 
   <script type="module">
     import { stateRef, queueRef, onSnapshot, addDoc, deleteDoc, setDoc, query, orderBy, serverTimestamp } from './firebase.js';
-    import { $, el, toast, youtubeId, songFromLink, search, searchEnabled, songRow, formatDuration } from './common.js';
+    import {
+      $, el, toast, youtubeId, songFromLink, search, searchEnabled, songRow, formatDuration, icon, iconButton, setIcon,
+    } from './common.js';
 
-    // Name, remembered per device
-    const nameInput = $('#name');
-    const load = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
-    nameInput.value = load('jukebox:name') || '';
-    nameInput.onchange = () => { try { localStorage.setItem('jukebox:name', nameInput.value.trim()); } catch {} };
-    const myName = () => nameInput.value.trim() || 'Guest';
+    // ---- Name (asked once, remembered per device) ----
+    const store = {
+      get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+      set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+    };
+    let myName = store.get('jukebox:name') || '';
+    const nameChip = $('#name-chip');
+    const renderName = () => nameChip.replaceChildren(icon('user'), el('span', { textContent: myName || 'Set name' }));
+    renderName();
 
-    if (!searchEnabled) $('#search-input').placeholder = 'Paste a YouTube link';
+    const dialog = $('#name-dialog');
+    function askName() {
+      $('#name-input').value = myName;
+      dialog.showModal();
+      return new Promise((resolve) => dialog.addEventListener('close', () => {
+        const value = $('#name-input').value.trim();
+        if (dialog.returnValue === 'ok' && value) { myName = value; store.set('jukebox:name', value); renderName(); }
+        if (!store.get('jukebox:name-asked')) store.set('jukebox:name-asked', '1');
+        renderQueue();
+        resolve();
+      }, { once: true }));
+    }
+    nameChip.onclick = askName;
+    const nameForSong = async () => {
+      if (!myName && !store.get('jukebox:name-asked')) await askName();
+      return myName || 'Guest';
+    };
 
-    // Now playing
+    // ---- Now playing + controls ----
+    const toggle = iconButton('play', 'Play');
+    const skip = iconButton('skip', 'Skip');
+    $('#now-controls').append(toggle, skip);
+    $('.search-icon').append(icon('search'));
+
     let playing = false, lastNotice;
     onSnapshot(stateRef, (snap) => {
       const s = snap.data() || {};
       const np = s.nowPlaying;
-      playing = Boolean(s.playing);
-      $('#now-thumb').hidden = !np;
-      if (np) $('#now-thumb').src = np.thumb;
+      playing = Boolean(np && s.playing);
+      $('#now-thumb').src = np?.thumb || '';
+      $('#now-thumb').classList.toggle('placeholder', !np);
       $('#now-title').textContent = np ? np.title : 'Nothing playing';
-      $('#now-meta').textContent = np ? [`${playing ? '▶ Playing' : '⏸ Paused'}`, `added by ${np.addedBy}`].join(' · ') : '';
+      $('#now-meta').textContent = np
+        ? `${playing ? 'Playing' : 'Paused'} · added by ${np.addedBy}`
+        : 'Add a song to get started';
+      setIcon(toggle, playing ? 'pause' : 'play', playing ? 'Pause' : 'Play');
       if (s.notice && lastNotice !== undefined && s.notice.at !== lastNotice) toast(s.notice.text);
       lastNotice = s.notice?.at ?? null;
     });
 
-    // Commands → host
     const send = (type) => setDoc(stateRef, { cmd: { type, id: crypto.randomUUID() } }, { merge: true });
-    $('#toggle').onclick = () => send(playing ? 'pause' : 'play');
-    $('#skip').onclick = () => send('skip');
+    toggle.onclick = () => send(playing ? 'pause' : 'play');
+    skip.onclick = () => send('skip');
 
-    // Queue
-    onSnapshot(query(queueRef, orderBy('createdAt')), (snap) => {
-      const list = $('#queue');
-      list.replaceChildren();
-      snap.forEach((d) => {
+    // ---- Queue ----
+    let queueDocs = [];
+    function renderQueue() {
+      $('#queue').replaceChildren(...queueDocs.map((d, i) => {
         const song = d.data();
-        const mine = song.addedBy === myName();
-        list.append(songRow(song, {
-          meta: [`${song.addedBy}`, formatDuration(song.duration)].filter(Boolean).join(' · '),
-          action: mine ? el('button', { className: 'ghost', textContent: '✕', title: 'Remove', onclick: () => deleteDoc(d.ref) }) : null,
-        }));
-      });
-      $('#queue-count').textContent = snap.size ? `(${snap.size})` : '';
-      $('#queue-empty').hidden = snap.size > 0;
-    });
+        const mine = song.addedBy === (myName || 'Guest');
+        return songRow(song, {
+          position: i + 1,
+          meta: [song.addedBy, formatDuration(song.duration)].filter(Boolean).join(' · '),
+          action: mine ? iconButton('close', 'Remove', { className: 'icon-btn ghost', onclick: () => deleteDoc(d.ref) }) : null,
+        });
+      }));
+      $('#queue-count').textContent = queueDocs.length ? `(${queueDocs.length})` : '';
+      $('#queue-empty').hidden = queueDocs.length > 0;
+    }
+    onSnapshot(query(queueRef, orderBy('createdAt')), (snap) => { queueDocs = snap.docs; renderQueue(); });
 
     async function enqueue(song) {
-      await addDoc(queueRef, { ...song, addedBy: myName(), createdAt: serverTimestamp() });
-      toast(`Added: ${song.title}`);
+      const addedBy = await nameForSong();
+      await addDoc(queueRef, { ...song, addedBy, createdAt: serverTimestamp() });
+      // The local snapshot already includes the new song by the time the write is acknowledged
+      toast(`Added · #${queueDocs.length} in queue`);
     }
 
-    // Search or paste
+    // ---- Search / paste ----
+    const input = $('#search-input');
+    const clearBtn = iconButton('close', 'Clear search', { className: 'icon-btn ghost small' });
+    $('#search-clear').append(clearBtn);
+    if (!searchEnabled) input.placeholder = 'Paste a YouTube link';
+
+    const showResults = (on) => { $('#results-view').hidden = !on; $('#queue-view').hidden = on; };
+    const closeResults = () => { input.value = ''; showResults(false); clearBtn.hidden = true; };
+    clearBtn.hidden = true;
+    input.addEventListener('input', () => { clearBtn.hidden = !input.value; });
+    clearBtn.onclick = () => { closeResults(); input.focus(); };
+    $('#results-done').onclick = closeResults;
+
     $('#search-form').onsubmit = async (e) => {
       e.preventDefault();
-      const input = $('#search-input');
       const text = input.value.trim();
+      if (!text) return;
       const results = $('#results');
       try {
         const id = youtubeId(text);
         if (id) {
-          if (input.value.trim() === text) input.value = ''; // clear now so another link can be pasted meanwhile
+          closeResults(); // clear now so another link can be pasted meanwhile
           const song = await songFromLink(id);
           if (!song) return toast('Can\'t add that video (private, removed or not embeddable)');
           await enqueue(song);
-          results.replaceChildren();
           return;
         }
         if (!searchEnabled) return toast('Search isn\'t set up. Paste a YouTube link instead');
+        input.blur(); // hide the keyboard so results are visible
+        $('#results-title').textContent = `Results for “${text}”`;
         results.replaceChildren(el('li', { className: 'empty', textContent: 'Searching…' }));
+        showResults(true);
+        window.scrollTo({ top: 0 });
         const found = await search(text);
-        results.replaceChildren(...found.map((song) => songRow(song, {
-          action: el('button', {
-            textContent: '+', title: 'Add to queue',
-            onclick: async (ev) => { ev.currentTarget.disabled = true; ev.currentTarget.textContent = '✓'; await enqueue(song); },
-          }),
-        })));
+        results.replaceChildren(...found.map((song) => {
+          const add = iconButton('plus', 'Add to queue');
+          add.onclick = async () => {
+            add.disabled = true;
+            setIcon(add, 'check', 'Added');
+            try { await enqueue(song); } catch (err) { add.disabled = false; setIcon(add, 'plus', 'Add to queue'); toast(`Error: ${err.message}`); }
+          };
+          return songRow(song, { action: add });
+        }));
         if (!found.length) results.replaceChildren(el('li', { className: 'empty', textContent: 'No results' }));
       } catch (err) {
         console.error(err);
-        results.replaceChildren();
+        showResults(false);
         toast(/quota/i.test(err.message) ? 'Daily search quota used up. Paste a YouTube link instead' : `Error: ${err.message}`);
       }
     };

@@ -2,7 +2,7 @@
 
 A personal YouTube party jukebox. One device plays music; anyone with the link can search, queue songs and play / pause / skip from their phone.
 
-- `index.html`: guest page (search, paste a link, queue, controls). This is what the QR code opens.
+- `index.html`: guest page (search, paste a link, queue, controls). This is what guests open at `hoangson.vn/jukebox`.
 - `host.html`: host page with the YouTube player. Open it on the device connected to the speaker.
 
 Static files only: GitHub Pages hosts them, Firestore syncs the queue in realtime, the YouTube IFrame Player plays, and the YouTube Data API searches. There is no server and no build step.
@@ -46,7 +46,7 @@ Push to `main`, then go to **Settings → Pages → Deploy from a branch → `ma
 ## Running the party
 
 1. On the host device, open `https://hoangson.vn/jukebox/host.html` and tap **Start party**.
-2. Guests scan the QR code on the host page, or open the site root.
+2. Guests open `hoangson.vn/jukebox`.
 
 For the host device:
 - Use **Chrome, logged in to YouTube Premium, in a normal tab with third-party cookies allowed**. Then the embedded player shows no ads. Incognito, or blocked third-party cookies, means ads.
