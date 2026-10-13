@@ -33,7 +33,7 @@ Guest (index.html) ──► Firestore: jukebox/state + jukebox/state/queue ─�
 1. In <https://console.cloud.google.com>, select the same project (Firebase projects are Google Cloud projects).
 2. **APIs & Services → Library → YouTube Data API v3 → Enable**.
 3. **Credentials → Create credentials → API key**, then edit the key:
-   - **Application restrictions → Websites:** `https://daohoangson.github.io/*` (add `http://localhost:*/*` for local testing)
+   - **Application restrictions → Websites:** `https://hoangson.vn/*` (add `http://localhost:8000/*` for local testing)
    - **API restrictions → Restrict key → YouTube Data API v3**
 4. Put it in `YT_API_KEY` in [`config.js`](config.js).
 
@@ -41,11 +41,11 @@ The default quota is 10,000 units a day and needs no approval. That's about **98
 
 ### 3. GitHub Pages
 
-Push to `main`, then go to **Settings → Pages → Deploy from a branch → `main` / root**. The site goes live at <https://daohoangson.github.io/jukebox/>.
+Push to `main`, then go to **Settings → Pages → Deploy from a branch → `main` / root**. The site goes live at <https://hoangson.vn/jukebox/> (the custom domain of the `daohoangson.github.io` user site; `github.io` URLs redirect there).
 
 ## Running the party
 
-1. On the host device, open `https://daohoangson.github.io/jukebox/host.html` and tap **Start party**.
+1. On the host device, open `https://hoangson.vn/jukebox/host.html` and tap **Start party**.
 2. Guests scan the QR code on the host page, or open the site root.
 
 For the host device:
