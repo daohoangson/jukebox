@@ -3,9 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#141312" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d0b12" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f5fb" media="(prefers-color-scheme: light)">
   <title>Jukebox Host</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Righteous&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="host">
@@ -25,6 +28,7 @@
       <div class="player-wrap">
         <div id="player"></div>
         <div id="idle" class="idle">
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></span>
           <div class="idle-title">Queue's empty</div>
           <div class="idle-hint">Add songs at <strong class="guest-url"></strong></div>
         </div>
@@ -52,7 +56,7 @@
     import {
       stateRef, queueRef, onSnapshot, getDoc, getDocs, deleteDoc, setDoc, query, orderBy, limit, writeBatch, db, usingEmulator,
     } from './firebase.js';
-    import { $, toast, songRow, formatDuration, iconButton, setIcon } from './common.js';
+    import { $, toast, songRow, formatDuration, iconButton, setIcon, setArt } from './common.js';
 
     if (usingEmulator) toast('Using local Firestore emulator');
 
@@ -104,6 +108,7 @@
       showIdle(false);
       $('#now-title').textContent = song.title;
       $('#now-meta').textContent = `added by ${song.addedBy}`;
+      setArt(document.body, song.thumb);
       player.loadVideoById({ videoId: song.videoId, startSeconds });
     }
 
@@ -112,6 +117,7 @@
       showIdle(true);
       $('#now-title').textContent = 'Nothing playing';
       $('#now-meta').textContent = '';
+      setArt(document.body, null);
       showPlaying(false);
       player?.stopVideo();
       return setState({ nowPlaying: null, playing: false, progress: null });

@@ -1,19 +1,26 @@
+/* Night party: ink-violet surfaces, a pink → violet neon accent, and the album art as ambient light */
 :root {
-  --bg: #f6f5f2;
+  --bg: #f7f5fb;
   --surface: #ffffff;
-  --surface-2: #efede8;
-  --text: #1c1b19;
-  --muted: #6b6862;
-  --border: #e2dfd8;
-  --accent: #d6402e;
+  --surface-2: #efebf5;
+  --text: #1a1523;
+  --muted: #655e73;
+  --border: #e6e1ee;
+  --accent: #db2777;
+  --accent-2: #7c3aed;
+  --accent-grad: linear-gradient(135deg, var(--accent), var(--accent-2));  /* white text is 4.5:1+ across it */
   --accent-text: #ffffff;
-  --accent-soft: #fae8e6;   /* tonal buttons: secondary actions */
-  --accent-ink: #b3311f;    /* accent as text/icon/focus ring; 4.5:1+ on bg and accent-soft */
-  --field-border: #948f86;  /* 3:1 against surface, so inputs read as inputs */
+  --accent-soft: #fce7f1;   /* tonal buttons: secondary actions */
+  --accent-ink: #be185d;    /* accent as text/icon/focus ring; 4.5:1+ on bg and accent-soft */
+  --field-border: #8f87a0;  /* 3:1 against surface, so inputs read as inputs */
+  --glow: 0 6px 20px color-mix(in srgb, var(--accent) 35%, transparent);
+  --shadow: 0 1px 2px rgb(26 21 35 / .06), 0 4px 16px rgb(26 21 35 / .06);
+  --art-opacity: .28;       /* how strongly the album art tints what's behind it */
+  --display: "Righteous", system-ui, sans-serif;
   --ease-out: cubic-bezier(.2, .8, .2, 1);
   --dur-fast: .12s;
   --dur: .2s;
-  --radius: 14px;
+  --radius: 18px;
   --gutter: 16px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -23,16 +30,17 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #141312;
-    --surface: #1f1d1b;
-    --surface-2: #2a2825;
-    --text: #f1efea;
-    --muted: #9c978f;
-    --border: #34312d;
-    --accent: #cf4430;
-    --accent-soft: #462620;
-    --accent-ink: #ff8f7d;
-    --field-border: #716b63;
+    --bg: #0d0b12;
+    --surface: #17141f;
+    --surface-2: #231f2d;
+    --text: #f4f1fa;
+    --muted: #a39cb2;
+    --border: #2a2536;
+    --accent-soft: #3a1a33;
+    --accent-ink: #ff7ab6;
+    --field-border: #6b6380;
+    --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px rgb(0 0 0 / .25);
+    --art-opacity: .55;
   }
 }
 
@@ -43,6 +51,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
 }
@@ -53,9 +62,18 @@ main, .top {
 }
 main { padding-bottom: calc(96px + var(--safe-bottom)); }
 
+/* Party lights: two soft neon glows behind everything */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(60% 40% at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
+    radial-gradient(50% 35% at 100% 10%, color-mix(in srgb, var(--accent-2) 14%, transparent), transparent 70%);
+}
+
 h1 { font-size: 1.15rem; margin: 0; }
+h1.brand, .overlay h1 { font-family: var(--display); font-weight: 400; }
 h1 small { font-weight: 400; color: var(--muted); font-size: .85em; }
-h2 { font-size: 1rem; margin: 0; }
+h2 { font-size: 1rem; margin: 0; letter-spacing: -.01em; }
 .count, .meta { color: var(--muted); font-size: .85rem; }
 
 /* Inputs are 16px so iOS doesn't zoom the page on focus */
@@ -63,14 +81,19 @@ input, button { font: inherit; color: inherit; font-size: 16px; }
 input {
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
   padding: 10px 12px; min-width: 0; width: 100%;
+  transition: border-color var(--dur) ease, box-shadow var(--dur) ease;
 }
-input:focus { outline: 2px solid var(--accent-ink); outline-offset: -1px; }
+input::placeholder { color: var(--muted); opacity: 1; }
+input:focus {
+  outline: 2px solid var(--accent-ink); outline-offset: -1px;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 15%, transparent);
+}
 :focus-visible { outline: 3px solid var(--accent-ink); outline-offset: 2px; }
 :focus:not(:focus-visible) { outline: none; }
 ::selection { background: var(--accent-soft); }
 
 button {
-  background: var(--accent); color: var(--accent-text); border: 0; border-radius: 12px;
+  background: var(--accent-grad); color: var(--accent-text); border: 0; border-radius: 12px; font-weight: 600;
   padding: 10px 16px; cursor: pointer; min-height: 44px;
   touch-action: manipulation; user-select: none; -webkit-user-select: none;
   transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur) ease,
@@ -78,19 +101,21 @@ button {
 }
 button:active:not(:disabled) { transform: scale(.94); }
 button:disabled { opacity: .5; cursor: default; }
-button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.icon-btn:not(.ghost, .tonal) { box-shadow: var(--glow); }
+button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); font-weight: 500; }
 button.tonal { background: var(--accent-soft); color: var(--accent-ink); }
 button.tonal.done:disabled { opacity: 1; background: transparent; color: var(--muted); }
 @media (hover: hover) {
   button:hover:not(:disabled) { filter: brightness(1.08); }
   button.ghost:hover:not(:disabled) { filter: none; color: var(--text); border-color: var(--field-border); }
-  button.tonal:hover:not(:disabled) { filter: none; background: var(--accent); color: var(--accent-text); }
+  button.tonal:hover:not(:disabled) { filter: none; background: var(--accent-grad); color: var(--accent-text); }
 }
 button.small { min-height: 36px; padding: 6px 12px; font-size: 14px; }
 button.big {
   display: inline-flex; align-items: center; gap: 10px;
-  font-size: 1.2rem; font-weight: 600; padding: 16px 32px 16px 24px; border-radius: 999px;
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 35%, transparent);
+  font-size: 1.2rem; font-weight: 600; padding: 18px 36px 18px 28px; border-radius: 999px;
+  box-shadow: 0 10px 32px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 4px 48px color-mix(in srgb, var(--accent-2) 35%, transparent);
 }
 button.big .icon { width: 28px; height: 28px; }
 button[hidden] { display: none; }
@@ -105,38 +130,48 @@ button[hidden] { display: none; }
 .icon-btn.small .icon { width: 20px; height: 20px; }
 
 /* Brand: the note in an accent tile (replaces the emoji, so it renders the same everywhere) */
-.brand { display: inline-flex; align-items: center; gap: 10px; letter-spacing: -.01em; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-size: 1.4rem; letter-spacing: .01em; }
 .brand-mark {
-  display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; flex: none;
-  background: var(--accent); color: var(--accent-text);
+  display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; flex: none;
+  background: var(--accent-grad); color: var(--accent-text); box-shadow: var(--glow);
 }
 .brand-mark svg { width: 20px; height: 20px; fill: currentColor; }
-.brand-mark.big { width: 72px; height: 72px; border-radius: 22px; margin-bottom: 4px; }
+.brand-mark.big { width: 88px; height: 88px; border-radius: 28px; margin-bottom: 8px; }
 .brand-mark.big svg { width: 44px; height: 44px; }
 
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 
 /* ---- Pinned top area (header, now playing, search) ---- */
 .top {
   position: sticky; top: 0; z-index: 3;
   padding-top: calc(8px + var(--safe-top)); padding-bottom: 12px;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4);
+  /* Soft bottom edge instead of a hard line where the list scrolls under */
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 10px), transparent); mask-image: linear-gradient(#000 calc(100% - 10px), transparent);
 }
-body.guest .top::after {
-  content: ""; position: absolute; left: 0; right: 0; bottom: -12px; height: 12px; pointer-events: none;
-  background: linear-gradient(var(--bg), transparent);
-}
+
 .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-bottom: 8px; }
 .chip {
-  display: inline-flex; align-items: center; gap: 6px; max-width: 55%;
+  display: inline-flex; align-items: center; gap: 6px; max-width: 55%; font-weight: 500;
   background: var(--surface); color: var(--text); border: 1px solid var(--border);
   border-radius: 999px; padding: 4px 12px 4px 8px; min-height: 36px; font-size: 14px;
 }
 .chip .icon { width: 18px; height: 18px; color: var(--muted); }
 .chip span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.now { display: flex; align-items: center; gap: 12px; padding: 10px; }
-.now img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; flex: none; background: var(--surface-2); }
+.now { display: flex; align-items: center; gap: 12px; padding: 10px; isolation: isolate; }
+.now img {
+  width: 64px; height: 64px; object-fit: cover; border-radius: 12px; flex: none; background: var(--surface-2);
+  box-shadow: 0 4px 14px rgb(0 0 0 / .3);
+}
+/* Ambient light: the current album art, blurred behind the card (set as --art from the song's thumbnail) */
+.now::before {
+  content: ""; position: absolute; inset: -40px; z-index: -1; pointer-events: none;
+  background: var(--art, none) center / cover;
+  filter: blur(36px) saturate(1.6); opacity: var(--art-opacity);
+  transition: opacity .6s ease;
+}
 .now img.placeholder { visibility: hidden; width: 0; margin-right: -12px; }
 .now .info { flex: 1; min-width: 0; }
 .now .title {
@@ -150,6 +185,7 @@ body.guest .top::after {
 
 /* Now-playing equalizer: bars bounce while playing and rest when paused */
 .eq { display: inline-flex; align-items: flex-end; gap: 2px; width: 14px; height: 12px; flex: none; color: var(--accent-ink); }
+.status .eq { margin-right: 2px; }
 .eq[hidden] { display: none; }
 .eq i { flex: 1; height: 100%; background: currentColor; border-radius: 1px; transform-origin: bottom; animation: eq 1s ease-in-out infinite; }
 .eq i:nth-child(2) { animation-delay: -.4s; animation-duration: .8s; }
@@ -161,41 +197,54 @@ body.guest .top::after {
 .now { position: relative; overflow: hidden; }
 .progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--surface-2); }
 .progress > div {
-  height: 100%; background: var(--accent); transform: scaleX(0); transform-origin: left;
+  height: 100%; background: var(--accent-grad); transform: scaleX(0); transform-origin: left;
   transition: transform .5s linear;
 }
 .time { font-variant-numeric: tabular-nums; }
 
 .search { position: relative; margin-top: 10px; display: flex; align-items: center; }
 .search input {
-  padding-left: 42px; padding-right: 44px; min-height: 48px; border-radius: 999px; border-color: var(--field-border);
+  padding-left: 44px; padding-right: 44px; min-height: 50px; border-radius: 999px; border-color: var(--field-border);
+  box-shadow: var(--shadow);
 }
+.search input:focus { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 15%, transparent); }
 .search input::-webkit-search-cancel-button { display: none; }
-.search-icon { position: absolute; left: 14px; color: var(--muted); display: inline-flex; pointer-events: none; }
+.search-icon { position: absolute; left: 15px; color: var(--muted); display: inline-flex; pointer-events: none; transition: color var(--dur) ease; }
+.search:focus-within .search-icon { color: var(--accent-ink); }
 #search-clear { position: absolute; right: 6px; }
 
 /* ---- Lists ---- */
-.section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 8px; min-height: 36px; }
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 8px; min-height: 36px; }
+.section-head h2 { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.section-head h2 .count { font-size: inherit; }
+#results-title { text-transform: none; letter-spacing: 0; font-size: 1rem; color: var(--text); }
 #results-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .song {
-  display: flex; align-items: center; gap: 10px; min-height: 64px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 6px 6px 6px 8px;
+  display: flex; align-items: center; gap: 12px; min-height: 64px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 8px 8px 8px 10px;
+  box-shadow: var(--shadow);
 }
+/* The next song gets the accent, so the room can see what's coming */
+#queue .song:first-child { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+#queue .song:first-child .pos { color: var(--accent-ink); font-weight: 700; }
 .song .pos { width: 1.4em; text-align: center; color: var(--muted); font-size: .85rem; flex: none; font-variant-numeric: tabular-nums; }
-.song img { width: 80px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; flex: none; background: var(--surface-2); }
+.song img { width: 80px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; flex: none; background: var(--surface-2); }
 .song .info { flex: 1; min-width: 0; }
 .song .title {
-  font-size: .95rem; line-height: 1.25;
+  font-size: .95rem; line-height: 1.25; font-weight: 500;
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
 .song .meta { margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.empty { color: var(--muted); font-size: .9rem; padding: 12px 2px; }
+.empty {
+  color: var(--muted); font-size: .9rem; padding: 28px 16px; text-align: center;
+  border: 1.5px dashed var(--border); border-radius: 14px;
+}
 
 /* Loading rows while searching */
 .song.skeleton { pointer-events: none; }
 .skeleton .thumb, .skeleton .line { display: block; background: var(--surface-2); border-radius: 6px; animation: pulse 1.2s ease-in-out infinite; }
-.skeleton .thumb { width: 80px; aspect-ratio: 16 / 9; flex: none; }
+.skeleton .thumb { width: 80px; aspect-ratio: 16 / 9; flex: none; border-radius: 8px; }
 .skeleton .line { height: 12px; width: 85%; }
 .skeleton .line.short { width: 45%; margin-top: 8px; }
 @keyframes pulse { 50% { opacity: .45; } }
@@ -212,23 +261,25 @@ body.guest .top::after {
 }
 .toast {
   display: flex; align-items: center; gap: 12px; pointer-events: auto;
-  background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px;
-  max-width: 100%; box-shadow: 0 4px 16px rgb(0 0 0 / .25);
+  background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 999px; font-weight: 500;
+  max-width: 100%; box-shadow: 0 8px 28px rgb(0 0 0 / .3);
   animation: toast-in var(--dur) var(--ease-out);
 }
-.toast:has(.toast-action) { padding: 4px 4px 4px 16px; }
+.toast:has(.toast-action) { padding: 4px 4px 4px 18px; }
 .toast-action {
-  background: transparent; color: var(--accent-soft); font-weight: 600; padding: 6px 12px; flex: none;
+  background: transparent; color: var(--accent-soft); font-weight: 700; padding: 6px 14px; flex: none; border-radius: 999px;
 }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 
 /* ---- Dialogs ---- */
 dialog {
-  border: 1px solid var(--border); border-radius: 18px; padding: 20px;
+  border: 1px solid var(--border); border-radius: 24px; padding: 24px; box-shadow: 0 24px 64px rgb(0 0 0 / .35);
   background: var(--surface); color: var(--text);
   width: min(360px, calc(100% - 32px));
 }
-dialog::backdrop { background: rgb(0 0 0 / .5); }
+dialog::backdrop { background: rgb(13 11 18 / .55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+dialog[open] { animation: dialog-in var(--dur) var(--ease-out); }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(8px) scale(.97); } }
 dialog h2 { font-size: 1.1rem; margin-bottom: 4px; }
 dialog p { margin: 0 0 12px; }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
@@ -238,9 +289,17 @@ body.host main { max-width: 1100px; padding-top: calc(var(--gutter) + var(--safe
 .overlay {
   position: fixed; inset: 0; z-index: 5; display: grid; place-content: center; justify-items: center; gap: 8px;
   padding: 16px; text-align: center;
-  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent) 14%, var(--bg)), var(--bg) 70%);
+  background:
+    radial-gradient(40% 50% at 30% 35%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 70%),
+    radial-gradient(40% 50% at 70% 60%, color-mix(in srgb, var(--accent-2) 30%, transparent), transparent 70%),
+    var(--bg);
+  background-size: 140% 140%;
+  animation: lights 12s ease-in-out infinite alternate;
 }
-.overlay h1 { font-size: 2rem; letter-spacing: -.02em; }
+@keyframes lights { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+.overlay h1 { font-size: clamp(2.5rem, 7vw, 4rem); letter-spacing: .01em; line-height: 1.1; }
+.overlay .brand-mark.big { animation: bob 2.4s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-6px) rotate(-3deg); } }
 .overlay .meta { font-size: 1rem; margin: 0; }
 .overlay .meta strong { color: var(--text); }
 .overlay button { margin: 20px 0 4px; }
@@ -248,17 +307,31 @@ body.host main { max-width: 1100px; padding-top: calc(var(--gutter) + var(--safe
 .player-wrap {
   position: relative; aspect-ratio: 16 / 9; background: #000;
   border-radius: var(--radius); overflow: hidden; margin-bottom: 12px;
+  box-shadow: 0 20px 60px rgb(0 0 0 / .35);
 }
 .player-wrap iframe { display: block; width: 100%; height: 100%; }
 /* Covers the player when nothing is queued (hides the stale video and YouTube's own play button) */
 .idle {
-  position: absolute; inset: 0; display: grid; place-content: center; gap: .4em; padding: 1em; text-align: center;
-  background: var(--surface); color: var(--muted);
+  position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: .4em; padding: 1em; text-align: center;
+  background:
+    radial-gradient(60% 70% at 20% 10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent),
+    radial-gradient(60% 70% at 85% 90%, color-mix(in srgb, var(--accent-2) 22%, transparent), transparent),
+    var(--surface);
+  color: var(--muted);
 }
+.idle .brand-mark { width: 3.5em; height: 3.5em; border-radius: 1.1em; margin-bottom: .4em; }
+.idle .brand-mark svg { width: 2em; height: 2em; }
 .idle[hidden] { display: none; }
-.idle-title { color: var(--text); font-size: 1.4em; font-weight: 600; }
+.idle-title { color: var(--text); font-family: var(--display); font-size: 1.8em; }
 .idle-hint strong { color: var(--text); white-space: nowrap; }
 #clear { margin-top: 12px; }
+/* Host ambient light: the current album art fills the room behind the player */
+body.host.has-art::before {
+  background: var(--art) center / cover;
+  filter: blur(80px) saturate(1.5); opacity: var(--art-opacity); transform: scale(1.2);
+}
+/* Over the ambient light, cards turn slightly see-through so its color shows */
+body.host .card, body.host .song { background: color-mix(in srgb, var(--surface) 78%, transparent); }
 
 /* Host in landscape (phones on their side, tablets, laptops, TVs): player + now-playing on the left,
    sized to fit the screen height; queue scrolls on the right. Type scales with screen height so it
@@ -302,6 +375,7 @@ body.host main { max-width: 1100px; padding-top: calc(var(--gutter) + var(--safe
 /* Less motion when asked: no bouncing, pulsing or scaling; state still shows through color and shape */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .overlay, .overlay .brand-mark.big { animation: none; }
   button:active:not(:disabled) { transform: none; }
   .eq i { transform: scaleY(.6); }
 }

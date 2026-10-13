@@ -3,9 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#141312" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d0b12" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f5fb" media="(prefers-color-scheme: light)">
   <title>Jukebox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Righteous&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="guest">
@@ -68,7 +71,7 @@
     import { stateRef, queueRef, onSnapshot, addDoc, deleteDoc, setDoc, query, orderBy, serverTimestamp } from './firebase.js';
     import {
       $, el, toast, youtubeId, songFromLink, search, searchEnabled, songRow, formatDuration, icon, iconButton, setIcon,
-      equalizer, skeletonRows,
+      equalizer, skeletonRows, setArt,
     } from './common.js';
 
     // ---- Name (asked once, remembered per device) ----
@@ -115,6 +118,7 @@
       nowVideoId = np?.videoId ?? null;
       $('#now-thumb').src = np?.thumb || '';
       $('#now-thumb').classList.toggle('placeholder', !np);
+      setArt($('.now'), np?.thumb);
       $('#now-title').textContent = np ? np.title : 'Nothing playing';
       $('#now-meta').textContent = np
         ? `${playing ? '' : 'Paused · '}added by ${np.addedBy}` // the bouncing bars say "playing"

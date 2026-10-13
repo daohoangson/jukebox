@@ -141,6 +141,13 @@ export function setIcon(button, name, label) {
   button.setAttribute('aria-label', label);
 }
 
+/** Use a song's thumbnail as ambient light behind `node` (see `--art` in style.css). */
+export function setArt(node, thumb) {
+  node.classList.toggle('has-art', Boolean(thumb));
+  if (thumb) node.style.setProperty('--art', `url(${JSON.stringify(thumb)})`);
+  else node.style.removeProperty('--art');
+}
+
 /** Three bouncing bars: shows at a glance whether music is playing (they rest when paused). */
 export function equalizer() {
   const eq = el('span', { className: 'eq' }, el('i'), el('i'), el('i'));
