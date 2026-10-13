@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jukebox Host</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body class="host">
+  <main>
+    <header>
+      <h1>🎵 Jukebox <small>host</small></h1>
+      <span id="wake" class="meta"></span>
+    </header>
+
+    <div id="start-overlay" class="overlay">
+      <button id="start" class="big">▶ Start party</button>
+      <p class="meta">Keep this tab open and the screen on.</p>
+    </div>
+
+    <div class="player-wrap"><div id="player"></div></div>
+
+    <section class="card now">
+      <div class="info">
+        <div id="now-title" class="title">Nothing playing</div>
+        <div id="now-meta" class="meta"></div>
+      </div>
+      <div class="controls">
+        <button id="toggle" title="Play / pause">⏯</button>
+        <button id="skip" title="Skip">⏭</button>
+      </div>
+    </section>
+
+    <div class="host-grid">
+      <section>
+        <h2>Up next <span id="queue-count" class="count"></span></h2>
+        <ul id="queue" class="list"></ul>
+        <p id="queue-empty" class="empty">Queue is empty.</p>
+        <button id="clear" class="ghost">Clear queue</button>
+      </section>
+      <aside class="card join">
+        <div id="qr"></div>
+        <p>Scan to add songs</p>
+        <a id="guest-link" class="meta"></a>
+      </aside>
+    </div>
+  </main>
+
+  <script type="module">
+    import {
+      stateRef, queueRef, onSnapshot, getDocs, deleteDoc, setDoc, query, orderBy, limit, writeBatch, db, usingEmulator,
+    } from './firebase.js';
+    import { $, toast, songRow, formatDuration } from './common.js';
+
+    // Guest link + QR
+    const guestUrl = new URL('./', location.href).href;
+    $('#guest-link').href = $('#guest-link').textContent = guestUrl;
+    new QRCode($('#qr'), { text: guestUrl, width: 160, height: 160 });
+    if (usingEmulator) toast('Using local Firestore emulator');
+
+    let player, playerReady = false, started = false, idle = true, busy = false, queueSize = 0, lastCmd;
+
+    const setState = (data) => setDoc(stateRef, data, { merge: true });
+    const notice = (text) => { toast(text); setState({ notice: { text, at: Date.now() } }); };
+
+    // YouTube player (load the API script after defining the callback, since modules run deferred)
+    window.onYouTubeIframeAPIReady = () => {
+      player = new YT.Player('player', {
+        width: '100%', height: '100%',
+        playerVars: { playsinline: 1, rel: 0 },
+        events: {
+          onReady: () => { playerReady = true; },
+          onStateChange: (e) => {
+            if (e.data === YT.PlayerState.ENDED) playNext();
+            if (e.data === YT.PlayerState.PLAYING) setState({ playing: true });
+            if (e.data === YT.PlayerState.PAUSED) setState({ playing: false });
+          },
+          onError: (e) => {
+            const reason = { 2: 'invalid video', 5: 'playback error', 100: 'video removed', 101: 'embedding disabled', 150: 'embedding disabled' }[e.data] || `error ${e.data}`;
+            notice(`Skipped (${reason})`);
+            playNext();
+          },
+        },
+      });
+    };
+    document.head.append(Object.assign(document.createElement('script'), { src: 'https://www.youtube.com/iframe_api' }));
+
+    function play(song) {
+      idle = false;
+      $('#now-title').textContent = song.title;
+      $('#now-meta').textContent = [`added by ${song.addedBy}`, formatDuration(song.duration)].filter(Boolean).join(' · ');
+      player.loadVideoById(song.videoId);
+    }
+
+    function stop() {
+      idle = true;
+      $('#now-title').textContent = 'Nothing playing';
+      $('#now-meta').textContent = '';
+      player?.stopVideo();
+      return setState({ nowPlaying: null, playing: false });
+    }
+
+    // Only the host takes songs off the queue, so there are no races between guests.
+    async function playNext() {
+      if (busy || !playerReady) return;
+      busy = true;
+      try {
+        const snap = await getDocs(query(queueRef, orderBy('createdAt'), limit(1)));
+        if (snap.empty) { await stop(); return; }
+        const next = snap.docs[0];
+        const { createdAt, ...song } = next.data();
+        await deleteDoc(next.ref);
+        await setState({ nowPlaying: song });
+        play(song);
+      } catch (err) {
+        console.error(err);
+        toast(`Error: ${err.message}`);
+      } finally {
+        busy = false;
+        // Something may have been added while we were busy finding the queue empty
+        if (started && idle && queueSize > 0) setTimeout(playNext, 0);
+      }
+    }
+
+    function toggle() {
+      if (!started || !playerReady) return;
+      if (idle) return playNext();
+      player.getPlayerState() === YT.PlayerState.PLAYING ? player.pauseVideo() : player.playVideo();
+    }
+
+    // Start: the tap unlocks autoplay with sound, and the wake lock keeps the screen (and playback) on
+    let wakeLock;
+    async function keepAwake() {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        $('#wake').textContent = '☀ screen kept on';
+        wakeLock.addEventListener('release', () => { $('#wake').textContent = ''; });
+      } catch { $('#wake').textContent = '⚠ screen may sleep'; }
+    }
+    document.addEventListener('visibilitychange', () => { if (started && document.visibilityState === 'visible') keepAwake(); });
+
+    $('#start').onclick = async () => {
+      if (!playerReady) return toast('Player still loading…');
+      started = true;
+      $('#start-overlay').hidden = true;
+      keepAwake();
+      // Resume what was playing before a refresh, otherwise start the queue
+      const resume = lastState?.nowPlaying;
+      if (resume) { play(resume); } else { playNext(); }
+    };
+
+    $('#toggle').onclick = toggle;
+    $('#skip').onclick = () => started && playNext();
+    $('#clear').onclick = async () => {
+      if (!confirm('Remove every song from the queue?')) return;
+      const snap = await getDocs(queueRef);
+      const batch = writeBatch(db);
+      snap.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    };
+
+    // State + commands from guests
+    let lastState;
+    onSnapshot(stateRef, (snap) => {
+      lastState = snap.data() || {};
+      const cmd = lastState.cmd;
+      const first = lastCmd === undefined;
+      if (!cmd || cmd.id === lastCmd) { lastCmd ??= null; return; }
+      lastCmd = cmd.id;
+      if (first || !started) return; // never replay a stale command on page load
+      if (cmd.type === 'play' && !idle) player.playVideo();
+      if (cmd.type === 'play' && idle) playNext();
+      if (cmd.type === 'pause') player.pauseVideo();
+      if (cmd.type === 'skip') playNext();
+    });
+
+    // Queue display + auto-start when something is added while idle
+    onSnapshot(query(queueRef, orderBy('createdAt')), (snap) => {
+      queueSize = snap.size;
+      const list = $('#queue');
+      list.replaceChildren();
+      snap.forEach((d) => {
+        const song = d.data();
+        list.append(songRow(song, { meta: [song.addedBy, formatDuration(song.duration)].filter(Boolean).join(' · ') }));
+      });
+      $('#queue-count').textContent = snap.size ? `(${snap.size})` : '';
+      $('#queue-empty').hidden = snap.size > 0;
+      if (started && idle && snap.size > 0) playNext();
+    });
+  </script>
+</body>
+</html>

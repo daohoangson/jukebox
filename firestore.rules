@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// Paste into Firebase console → Firestore Database → Rules.
+// Open by design: a single personal room. Anyone with the site URL can queue/skip songs.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /jukebox/{document=**} {
+      allow read, write: if true;
+    }
+    match /searches/{query} {
+      allow read, write: if true;
+    }
+  }
+}

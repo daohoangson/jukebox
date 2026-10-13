@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jukebox</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>🎵 Jukebox</h1>
+      <label class="name">Your name <input id="name" maxlength="30" autocomplete="nickname"></label>
+    </header>
+
+    <section class="card now">
+      <img id="now-thumb" alt="" hidden>
+      <div class="info">
+        <div class="label">Now playing</div>
+        <div id="now-title" class="title">Nothing playing</div>
+        <div id="now-meta" class="meta"></div>
+      </div>
+      <div class="controls">
+        <button id="toggle" title="Play / pause">⏯</button>
+        <button id="skip" title="Skip">⏭</button>
+      </div>
+    </section>
+
+    <form id="search-form" class="search">
+      <input id="search-input" type="search" placeholder="Search songs or paste a YouTube link" required enterkeyhint="search">
+      <button>Go</button>
+    </form>
+    <ul id="results" class="list"></ul>
+
+    <h2>Up next <span id="queue-count" class="count"></span></h2>
+    <ul id="queue" class="list"></ul>
+    <p id="queue-empty" class="empty">Queue is empty. Add something!</p>
+  </main>
+
+  <script type="module">
+    import { stateRef, queueRef, onSnapshot, addDoc, deleteDoc, setDoc, query, orderBy, serverTimestamp } from './firebase.js';
+    import { $, el, toast, youtubeId, songFromLink, search, searchEnabled, songRow, formatDuration } from './common.js';
+
+    // Name, remembered per device
+    const nameInput = $('#name');
+    const load = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+    nameInput.value = load('jukebox:name') || '';
+    nameInput.onchange = () => { try { localStorage.setItem('jukebox:name', nameInput.value.trim()); } catch {} };
+    const myName = () => nameInput.value.trim() || 'Guest';
+
+    if (!searchEnabled) $('#search-input').placeholder = 'Paste a YouTube link';
+
+    // Now playing
+    let playing = false, lastNotice;
+    onSnapshot(stateRef, (snap) => {
+      const s = snap.data() || {};
+      const np = s.nowPlaying;
+      playing = Boolean(s.playing);
+      $('#now-thumb').hidden = !np;
+      if (np) $('#now-thumb').src = np.thumb;
+      $('#now-title').textContent = np ? np.title : 'Nothing playing';
+      $('#now-meta').textContent = np ? [`${playing ? '▶ Playing' : '⏸ Paused'}`, `added by ${np.addedBy}`].join(' · ') : '';
+      if (s.notice && lastNotice !== undefined && s.notice.at !== lastNotice) toast(s.notice.text);
+      lastNotice = s.notice?.at ?? null;
+    });
+
+    // Commands → host
+    const send = (type) => setDoc(stateRef, { cmd: { type, id: crypto.randomUUID() } }, { merge: true });
+    $('#toggle').onclick = () => send(playing ? 'pause' : 'play');
+    $('#skip').onclick = () => send('skip');
+
+    // Queue
+    onSnapshot(query(queueRef, orderBy('createdAt')), (snap) => {
+      const list = $('#queue');
+      list.replaceChildren();
+      snap.forEach((d) => {
+        const song = d.data();
+        const mine = song.addedBy === myName();
+        list.append(songRow(song, {
+          meta: [`${song.addedBy}`, formatDuration(song.duration)].filter(Boolean).join(' · '),
+          action: mine ? el('button', { className: 'ghost', textContent: '✕', title: 'Remove', onclick: () => deleteDoc(d.ref) }) : null,
+        }));
+      });
+      $('#queue-count').textContent = snap.size ? `(${snap.size})` : '';
+      $('#queue-empty').hidden = snap.size > 0;
+    });
+
+    async function enqueue(song) {
+      await addDoc(queueRef, { ...song, addedBy: myName(), createdAt: serverTimestamp() });
+      toast(`Added: ${song.title}`);
+    }
+
+    // Search or paste
+    $('#search-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const input = $('#search-input');
+      const text = input.value.trim();
+      const results = $('#results');
+      try {
+        const id = youtubeId(text);
+        if (id) {
+          if (input.value.trim() === text) input.value = ''; // clear now so another link can be pasted meanwhile
+          const song = await songFromLink(id);
+          if (!song) return toast('Can\'t add that video (private, removed or not embeddable)');
+          await enqueue(song);
+          results.replaceChildren();
+          return;
+        }
+        if (!searchEnabled) return toast('Search isn\'t set up. Paste a YouTube link instead');
+        results.replaceChildren(el('li', { className: 'empty', textContent: 'Searching…' }));
+        const found = await search(text);
+        results.replaceChildren(...found.map((song) => songRow(song, {
+          action: el('button', {
+            textContent: '+', title: 'Add to queue',
+            onclick: async (ev) => { ev.currentTarget.disabled = true; ev.currentTarget.textContent = '✓'; await enqueue(song); },
+          }),
+        })));
+        if (!found.length) results.replaceChildren(el('li', { className: 'empty', textContent: 'No results' }));
+      } catch (err) {
+        console.error(err);
+        results.replaceChildren();
+        toast(/quota/i.test(err.message) ? 'Daily search quota used up. Paste a YouTube link instead' : `Error: ${err.message}`);
+      }
+    };
+  </script>
+</body>
+</html>
