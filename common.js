@@ -10,12 +10,26 @@ export function el(tag, props = {}, ...children) {
   return node;
 }
 
-/** One toast at a time: a new one replaces the current one instead of stacking on top of it. */
-export function toast(text) {
-  document.querySelectorAll('.toast').forEach((t) => t.remove());
-  const t = el('div', { className: 'toast', textContent: text, role: 'status' });
-  document.body.append(t);
-  setTimeout(() => t.remove(), 3500);
+/**
+ * One toast at a time: a new one replaces the current one instead of stacking on top of it.
+ * Toasts go into one persistent live region, so screen readers announce each of them.
+ * Pass `action` ({ label, onclick }) for an inline button such as Undo; such toasts stay a bit longer.
+ */
+let toastTimer;
+export function toast(text, action) {
+  let region = document.querySelector('#toasts');
+  if (!region) {
+    region = el('div', { id: 'toasts', className: 'toasts', role: 'status' });
+    region.setAttribute('aria-live', 'polite');
+    document.body.append(region);
+  }
+  const button = action && el('button', {
+    type: 'button', className: 'toast-action', textContent: action.label,
+    onclick: () => { region.replaceChildren(); action.onclick(); },
+  });
+  region.replaceChildren(el('div', { className: 'toast' }, el('span', { textContent: text }), button));
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => region.replaceChildren(), action ? 6000 : 3500);
 }
 
 export function youtubeId(input) {
@@ -103,6 +117,7 @@ const ICONS = {
   close: 'M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z',
   search: 'M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z',
+  music: 'M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z',
 };
 
 /** Inline SVG icon (static paths only, so innerHTML is safe here). */
@@ -124,6 +139,21 @@ export function setIcon(button, name, label) {
   button.replaceChildren(icon(name));
   button.title = label;
   button.setAttribute('aria-label', label);
+}
+
+/** Three bouncing bars: shows at a glance whether music is playing (they rest when paused). */
+export function equalizer() {
+  const eq = el('span', { className: 'eq' }, el('i'), el('i'), el('i'));
+  eq.setAttribute('aria-hidden', 'true');
+  return eq;
+}
+
+/** Placeholder rows shown while search results load, shaped like real rows so nothing jumps. */
+export function skeletonRows(count) {
+  return Array.from({ length: count }, () => el('li', { className: 'song skeleton' },
+    el('span', { className: 'thumb' }),
+    el('div', { className: 'info' }, el('span', { className: 'line' }), el('span', { className: 'line short' })),
+  ));
 }
 
 /** Shared row renderer for queue / search results. */

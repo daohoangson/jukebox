@@ -11,7 +11,10 @@
 <body class="guest">
   <div class="top">
     <header class="bar">
-      <h1>🎵 Jukebox</h1>
+      <h1 class="brand">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></span>
+        Jukebox
+      </h1>
       <button id="name-chip" type="button" class="chip"></button>
     </header>
 
@@ -19,7 +22,7 @@
       <img id="now-thumb" alt="">
       <div class="info">
         <div id="now-title" class="title">Nothing playing</div>
-        <div id="now-meta" class="meta">Add a song to get started</div>
+        <div class="meta status"><span id="now-eq" hidden></span><span id="now-meta">Add a song to get started</span></div>
       </div>
       <div id="now-controls" class="controls"></div>
     </section>
@@ -27,6 +30,7 @@
     <form id="search-form" class="search" role="search">
       <span class="search-icon"></span>
       <input id="search-input" type="search" placeholder="Search songs or paste a link" required
+             aria-label="Search songs or paste a YouTube link"
              enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <span id="search-clear"></span>
     </form>
@@ -50,9 +54,9 @@
 
   <dialog id="name-dialog">
     <form method="dialog">
-      <h2>What's your name?</h2>
+      <h2 id="name-title">What's your name?</h2>
       <p class="meta">Shown next to the songs you add.</p>
-      <input id="name-input" maxlength="30" autocomplete="nickname" enterkeyhint="done" placeholder="Your name">
+      <input id="name-input" aria-labelledby="name-title" maxlength="30" autocomplete="nickname" enterkeyhint="done" placeholder="Your name">
       <div class="dialog-actions">
         <button type="button" class="ghost" onclick="this.closest('dialog').close('skip')">Skip</button>
         <button value="ok">Save</button>
@@ -64,6 +68,7 @@
     import { stateRef, queueRef, onSnapshot, addDoc, deleteDoc, setDoc, query, orderBy, serverTimestamp } from './firebase.js';
     import {
       $, el, toast, youtubeId, songFromLink, search, searchEnabled, songRow, formatDuration, icon, iconButton, setIcon,
+      equalizer, skeletonRows,
     } from './common.js';
 
     // ---- Name (asked once, remembered per device) ----
@@ -96,25 +101,30 @@
 
     // ---- Now playing + controls ----
     const toggle = iconButton('play', 'Play');
-    const skip = iconButton('skip', 'Skip');
+    const skip = iconButton('skip', 'Skip', { className: 'icon-btn tonal' });
     $('#now-controls').append(toggle, skip);
     $('.search-icon').append(icon('search'));
+    $('#now-eq').replaceWith(Object.assign(equalizer(), { id: 'now-eq', hidden: true }));
 
-    let playing = false, playId = null, lastNotice;
+    let playing = false, playId = null, nowVideoId = null, lastNotice;
     onSnapshot(stateRef, (snap) => {
       const s = snap.data() || {};
       const np = s.nowPlaying;
       playing = Boolean(np && s.playing);
       playId = np?.playId ?? null;
+      nowVideoId = np?.videoId ?? null;
       $('#now-thumb').src = np?.thumb || '';
       $('#now-thumb').classList.toggle('placeholder', !np);
       $('#now-title').textContent = np ? np.title : 'Nothing playing';
       $('#now-meta').textContent = np
-        ? `${playing ? 'Playing' : 'Paused'} · added by ${np.addedBy}`
+        ? `${playing ? '' : 'Paused · '}added by ${np.addedBy}` // the bouncing bars say "playing"
         : 'Add a song to get started';
+      $('#now-eq').hidden = !np;
+      $('#now-eq').classList.toggle('paused', !playing);
       setIcon(toggle, playing ? 'pause' : 'play', playing ? 'Pause' : 'Play');
       if (s.notice && lastNotice !== undefined && s.notice.at !== lastNotice) toast(s.notice.text);
       lastNotice = s.notice?.at ?? null;
+      renderResults();
     });
 
     const send = (type, extra = {}) => setDoc(stateRef, { cmd: { type, id: crypto.randomUUID(), ...extra } }, { merge: true });
@@ -130,14 +140,21 @@
         const mine = song.addedBy === (myName || 'Guest');
         return songRow(song, {
           position: i + 1,
-          meta: [song.addedBy, formatDuration(song.duration)].filter(Boolean).join(' · '),
-          action: mine ? iconButton('close', 'Remove', { className: 'icon-btn ghost', onclick: () => deleteDoc(d.ref) }) : null,
+          meta: [mine ? 'You' : song.addedBy, formatDuration(song.duration)].filter(Boolean).join(' · '),
+          action: mine ? iconButton('close', `Remove ${song.title}`, { className: 'icon-btn ghost', onclick: () => remove(d) }) : null,
         });
       }));
       $('#queue-count').textContent = queueDocs.length ? `(${queueDocs.length})` : '';
       $('#queue-empty').hidden = queueDocs.length > 0;
     }
-    onSnapshot(query(queueRef, orderBy('createdAt')), (snap) => { queueDocs = snap.docs; renderQueue(); });
+    onSnapshot(query(queueRef, orderBy('createdAt')), (snap) => { queueDocs = snap.docs; renderQueue(); renderResults(); });
+
+    // Put it back under the same ID and createdAt, so it returns to its old spot in the queue
+    async function remove(d) {
+      const song = d.data();
+      await deleteDoc(d.ref);
+      toast('Removed from queue', { label: 'Undo', onclick: () => setDoc(d.ref, song) });
+    }
 
     async function enqueue(song) {
       const addedBy = await nameForSong();
@@ -151,6 +168,25 @@
     const clearBtn = iconButton('close', 'Clear search', { className: 'icon-btn ghost small' });
     $('#search-clear').append(clearBtn);
     if (!searchEnabled) input.placeholder = 'Paste a YouTube link';
+
+    // Results know what's already queued or playing (live, whoever added it), so nobody queues a song twice
+    let found = null;
+    function renderResults() {
+      if (!found || $('#results-view').hidden) return;
+      if (!found.length) return $('#results').replaceChildren(el('li', { className: 'empty', textContent: 'No results. Try other words or paste a link.' }));
+      const queued = new Set(queueDocs.map((d) => d.data().videoId));
+      $('#results').replaceChildren(...found.map((song) => {
+        const status = song.videoId === nowVideoId ? 'Playing now' : queued.has(song.videoId) ? 'In queue' : null;
+        const meta = [status, song.channel, formatDuration(song.duration)].filter(Boolean).join(' · ');
+        if (status) return songRow(song, { meta, action: iconButton('check', status, { className: 'icon-btn tonal done', disabled: true }) });
+        const add = iconButton('plus', `Add ${song.title}`, { className: 'icon-btn tonal' });
+        add.onclick = async () => {
+          add.disabled = true;
+          try { await enqueue(song); } catch (err) { add.disabled = false; toast(`Error: ${err.message}`); }
+        };
+        return songRow(song, { meta, action: add });
+      }));
+    }
 
     const showResults = (on) => { $('#results-view').hidden = !on; $('#queue-view').hidden = on; };
     const closeResults = () => { input.value = ''; showResults(false); clearBtn.hidden = true; };
@@ -176,23 +212,18 @@
         if (!searchEnabled) return toast('Search isn\'t set up. Paste a YouTube link instead');
         input.blur(); // hide the keyboard so results are visible
         $('#results-title').textContent = `Results for “${text}”`;
-        results.replaceChildren(el('li', { className: 'empty', textContent: 'Searching…' }));
+        found = null;
+        results.replaceChildren(...skeletonRows(5));
+        results.setAttribute('aria-busy', 'true');
         showResults(true);
         window.scrollTo({ top: 0 });
-        const found = await search(text);
-        results.replaceChildren(...found.map((song) => {
-          const add = iconButton('plus', 'Add to queue');
-          add.onclick = async () => {
-            add.disabled = true;
-            setIcon(add, 'check', 'Added');
-            try { await enqueue(song); } catch (err) { add.disabled = false; setIcon(add, 'plus', 'Add to queue'); toast(`Error: ${err.message}`); }
-          };
-          return songRow(song, { action: add });
-        }));
-        if (!found.length) results.replaceChildren(el('li', { className: 'empty', textContent: 'No results' }));
+        found = await search(text);
+        results.removeAttribute('aria-busy');
+        renderResults();
       } catch (err) {
         console.error(err);
         showResults(false);
+        $('#results').removeAttribute('aria-busy');
         toast(/quota/i.test(err.message) ? 'Daily search quota used up. Paste a YouTube link instead' : `Error: ${err.message}`);
       }
     };

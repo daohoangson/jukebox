@@ -10,7 +10,13 @@
 </head>
 <body class="host">
   <div id="start-overlay" class="overlay">
-    <button id="start" class="big" autofocus>▶ Start party</button>
+    <span class="brand-mark big" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></span>
+    <h1>Jukebox</h1>
+    <p class="meta">Guests add songs at <strong class="guest-url"></strong></p>
+    <button id="start" class="big" autofocus>
+      <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>
+      Start party
+    </button>
     <p class="meta">Keep this tab open and the screen on.</p>
   </div>
 
@@ -20,16 +26,17 @@
         <div id="player"></div>
         <div id="idle" class="idle">
           <div class="idle-title">Queue's empty</div>
-          <div class="idle-hint">Add songs at <strong id="guest-url"></strong></div>
+          <div class="idle-hint">Add songs at <strong class="guest-url"></strong></div>
         </div>
       </div>
 
       <section class="card now">
         <div class="info">
           <div id="now-title" class="title">Nothing playing</div>
-          <div id="now-meta" class="meta"></div>
+          <div class="meta"><span id="now-meta"></span><span id="now-time" class="time"></span></div>
         </div>
         <div id="now-controls" class="controls"></div>
+        <div class="progress" aria-hidden="true"><div id="now-progress"></div></div>
       </section>
     </div>
 
@@ -51,10 +58,10 @@
 
     // Shown on the idle panel only, so the playing screen stays clean
     const guestUrl = new URL(`./${location.search}`, location.href).href; // keep ?live in local dev
-    $('#guest-url').textContent = guestUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    document.querySelectorAll('.guest-url').forEach((n) => { n.textContent = guestUrl.replace(/^https?:\/\//, '').replace(/\/$/, ''); });
 
     const toggleBtn = iconButton('play', 'Play');
-    const skipBtn = iconButton('skip', 'Skip');
+    const skipBtn = iconButton('skip', 'Skip', { className: 'icon-btn tonal' });
     $('#now-controls').append(toggleBtn, skipBtn);
     const showPlaying = (on) => setIcon(toggleBtn, on ? 'pause' : 'play', on ? 'Pause' : 'Play');
 
@@ -96,7 +103,7 @@
       current = song;
       showIdle(false);
       $('#now-title').textContent = song.title;
-      $('#now-meta').textContent = [`added by ${song.addedBy}`, formatDuration(song.duration)].filter(Boolean).join(' · ');
+      $('#now-meta').textContent = `added by ${song.addedBy}`;
       player.loadVideoById({ videoId: song.videoId, startSeconds });
     }
 
@@ -116,6 +123,14 @@
       setState({ progress: { playId: current.playId, seconds: Math.floor(player.getCurrentTime()) } });
     }
     setInterval(() => { if (started && !idle && player?.getPlayerState?.() === YT.PlayerState.PLAYING) saveProgress(); }, 10000);
+
+    // Elapsed time + progress bar, so the room can see how long until the next song
+    setInterval(() => {
+      const total = !idle && player?.getDuration?.();
+      const at = total ? Math.min(player.getCurrentTime(), total) : 0;
+      $('#now-time').textContent = total ? ` · ${formatDuration(Math.floor(at))} / ${formatDuration(Math.round(total))}` : '';
+      $('#now-progress').style.transform = `scaleX(${total ? at / total : 0})`;
+    }, 500);
 
     // Only the host takes songs off the queue, so there are no races between guests.
     async function playNext() {
