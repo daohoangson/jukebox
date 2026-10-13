@@ -100,11 +100,12 @@
     $('#now-controls').append(toggle, skip);
     $('.search-icon').append(icon('search'));
 
-    let playing = false, lastNotice;
+    let playing = false, playId = null, lastNotice;
     onSnapshot(stateRef, (snap) => {
       const s = snap.data() || {};
       const np = s.nowPlaying;
       playing = Boolean(np && s.playing);
+      playId = np?.playId ?? null;
       $('#now-thumb').src = np?.thumb || '';
       $('#now-thumb').classList.toggle('placeholder', !np);
       $('#now-title').textContent = np ? np.title : 'Nothing playing';
@@ -116,9 +117,10 @@
       lastNotice = s.notice?.at ?? null;
     });
 
-    const send = (type) => setDoc(stateRef, { cmd: { type, id: crypto.randomUUID() } }, { merge: true });
+    const send = (type, extra = {}) => setDoc(stateRef, { cmd: { type, id: crypto.randomUUID(), ...extra } }, { merge: true });
     toggle.onclick = () => send(playing ? 'pause' : 'play');
-    skip.onclick = () => send('skip');
+    // Tag the skip with the song we're looking at, so a double or late tap doesn't skip the next song too
+    skip.onclick = () => send('skip', { playId });
 
     // ---- Queue ----
     let queueDocs = [];

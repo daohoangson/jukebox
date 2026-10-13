@@ -10,8 +10,10 @@ export function el(tag, props = {}, ...children) {
   return node;
 }
 
+/** One toast at a time: a new one replaces the current one instead of stacking on top of it. */
 export function toast(text) {
-  const t = el('div', { className: 'toast', textContent: text });
+  document.querySelectorAll('.toast').forEach((t) => t.remove());
+  const t = el('div', { className: 'toast', textContent: text, role: 'status' });
   document.body.append(t);
   setTimeout(() => t.remove(), 3500);
 }

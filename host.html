@@ -10,36 +10,48 @@
 </head>
 <body class="host">
   <div id="start-overlay" class="overlay">
-    <button id="start" class="big">▶ Start party</button>
+    <button id="start" class="big" autofocus>▶ Start party</button>
     <p class="meta">Keep this tab open and the screen on.</p>
   </div>
 
   <main>
-    <div class="player-wrap"><div id="player"></div></div>
-
-    <section class="card now">
-      <div class="info">
-        <div id="now-title" class="title">Nothing playing</div>
-        <div id="now-meta" class="meta"></div>
+    <div class="stage">
+      <div class="player-wrap">
+        <div id="player"></div>
+        <div id="idle" class="idle">
+          <div class="idle-title">Queue's empty</div>
+          <div class="idle-hint">Add songs at <strong id="guest-url"></strong></div>
+        </div>
       </div>
-      <div id="now-controls" class="controls"></div>
-    </section>
+
+      <section class="card now">
+        <div class="info">
+          <div id="now-title" class="title">Nothing playing</div>
+          <div id="now-meta" class="meta"></div>
+        </div>
+        <div id="now-controls" class="controls"></div>
+      </section>
+    </div>
 
     <section class="queue-pane">
       <div class="section-head"><h2>Up next <span id="queue-count" class="count"></span></h2></div>
       <ul id="queue" class="list"></ul>
       <p id="queue-empty" class="empty">Queue is empty.</p>
-      <button id="clear" class="ghost small">Clear queue</button>
+      <button id="clear" class="ghost small" hidden>Clear queue</button>
     </section>
   </main>
 
   <script type="module">
     import {
-      stateRef, queueRef, onSnapshot, getDocs, deleteDoc, setDoc, query, orderBy, limit, writeBatch, db, usingEmulator,
+      stateRef, queueRef, onSnapshot, getDoc, getDocs, deleteDoc, setDoc, query, orderBy, limit, writeBatch, db, usingEmulator,
     } from './firebase.js';
     import { $, toast, songRow, formatDuration, iconButton, setIcon } from './common.js';
 
     if (usingEmulator) toast('Using local Firestore emulator');
+
+    // Shown on the idle panel only, so the playing screen stays clean
+    const guestUrl = new URL(`./${location.search}`, location.href).href; // keep ?live in local dev
+    $('#guest-url').textContent = guestUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
     const toggleBtn = iconButton('play', 'Play');
     const skipBtn = iconButton('skip', 'Skip');
@@ -47,6 +59,7 @@
     const showPlaying = (on) => setIcon(toggleBtn, on ? 'pause' : 'play', on ? 'Pause' : 'Play');
 
     let player, playerReady = false, started = false, idle = true, busy = false, queueSize = 0, lastCmd;
+    let current = null; // song being played, including its playId
 
     const setState = (data) => setDoc(stateRef, data, { merge: true });
     const notice = (text) => { toast(text); setState({ notice: { text, at: Date.now() } }); };
@@ -61,11 +74,12 @@
           onStateChange: (e) => {
             if (e.data === YT.PlayerState.ENDED) playNext();
             if (e.data === YT.PlayerState.PLAYING) { showPlaying(true); setState({ playing: true }); }
-            if (e.data === YT.PlayerState.PAUSED) { showPlaying(false); setState({ playing: false }); }
+            if (e.data === YT.PlayerState.PAUSED) { showPlaying(false); saveProgress(); setState({ playing: false }); }
           },
           onError: (e) => {
-            const reason = { 2: 'invalid video', 5: 'playback error', 100: 'video removed', 101: 'embedding disabled', 150: 'embedding disabled' }[e.data] || `error ${e.data}`;
-            notice(`Skipped (${reason})`);
+            // YouTube reports removed, private and non-embeddable videos (and bad IDs) with overlapping codes
+            const reason = { 2: 'invalid link', 5: 'playback error' }[e.data] || 'can\'t be played here';
+            notice(`Skipped “${current?.title ?? 'video'}”: ${reason}`);
             playNext();
           },
         },
@@ -73,21 +87,35 @@
     };
     document.head.append(Object.assign(document.createElement('script'), { src: 'https://www.youtube.com/iframe_api' }));
 
-    function play(song) {
-      idle = false;
+    function showIdle(on) {
+      idle = on;
+      $('#idle').hidden = !on;
+    }
+
+    function play(song, startSeconds = 0) {
+      current = song;
+      showIdle(false);
       $('#now-title').textContent = song.title;
       $('#now-meta').textContent = [`added by ${song.addedBy}`, formatDuration(song.duration)].filter(Boolean).join(' · ');
-      player.loadVideoById(song.videoId);
+      player.loadVideoById({ videoId: song.videoId, startSeconds });
     }
 
     function stop() {
-      idle = true;
+      current = null;
+      showIdle(true);
       $('#now-title').textContent = 'Nothing playing';
       $('#now-meta').textContent = '';
       showPlaying(false);
       player?.stopVideo();
-      return setState({ nowPlaying: null, playing: false });
+      return setState({ nowPlaying: null, playing: false, progress: null });
     }
+
+    // Remember the position so a host refresh resumes mid-song instead of from 0:00
+    function saveProgress() {
+      if (!current || !player?.getCurrentTime) return;
+      setState({ progress: { playId: current.playId, seconds: Math.floor(player.getCurrentTime()) } });
+    }
+    setInterval(() => { if (started && !idle && player?.getPlayerState?.() === YT.PlayerState.PLAYING) saveProgress(); }, 10000);
 
     // Only the host takes songs off the queue, so there are no races between guests.
     async function playNext() {
@@ -97,9 +125,10 @@
         const snap = await getDocs(query(queueRef, orderBy('createdAt'), limit(1)));
         if (snap.empty) { await stop(); return; }
         const next = snap.docs[0];
-        const { createdAt, ...song } = next.data();
+        const { createdAt, ...rest } = next.data();
+        const song = { ...rest, playId: crypto.randomUUID() }; // guests tag skips with this
         await deleteDoc(next.ref);
-        await setState({ nowPlaying: song });
+        await setState({ nowPlaying: song, progress: null });
         play(song);
       } catch (err) {
         console.error(err);
@@ -116,6 +145,7 @@
       if (idle) return playNext();
       player.getPlayerState() === YT.PlayerState.PLAYING ? player.pauseVideo() : player.playVideo();
     }
+    const skip = () => started && playNext();
 
     // Start: the tap unlocks autoplay with sound, and the wake lock keeps the screen (and playback) on
     let wakeWarned = false;
@@ -133,14 +163,21 @@
       if (!playerReady) return toast('Player still loading…');
       started = true;
       $('#start-overlay').hidden = true;
+      document.activeElement?.blur(); // so Space toggles playback instead of re-pressing the hidden button
       keepAwake();
-      // Resume what was playing before a refresh, otherwise start the queue
-      const resume = lastState?.nowPlaying;
-      if (resume) { play(resume); } else { playNext(); }
+      // Resume what was playing before a refresh (at the saved position), otherwise start the queue
+      const state = lastState ?? (await getDoc(stateRef)).data() ?? {};
+      const resume = state.nowPlaying;
+      if (resume) {
+        const at = state.progress?.playId && state.progress.playId === resume.playId ? state.progress.seconds : 0;
+        play(resume, at);
+      } else {
+        playNext();
+      }
     };
 
     toggleBtn.onclick = toggle;
-    skipBtn.onclick = () => started && playNext();
+    skipBtn.onclick = skip;
     $('#clear').onclick = async () => {
       if (!confirm('Remove every song from the queue?')) return;
       const snap = await getDocs(queueRef);
@@ -148,6 +185,16 @@
       snap.forEach((d) => batch.delete(d.ref));
       await batch.commit();
     };
+
+    // Keyboard: Space / K = play-pause, N = skip (when the host is a laptop)
+    document.addEventListener('keydown', (e) => {
+      if (!started || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      if (e.target.closest('input, textarea')) return;
+      const key = e.key.toLowerCase();
+      if (key === ' ' && e.target.closest('button, a')) return; // Space already activates the focused control
+      if (key === ' ' || key === 'k') { e.preventDefault(); toggle(); }
+      if (key === 'n') { e.preventDefault(); skip(); }
+    });
 
     // State + commands from guests
     let lastState;
@@ -161,7 +208,8 @@
       if (cmd.type === 'play' && !idle) player.playVideo();
       if (cmd.type === 'play' && idle) playNext();
       if (cmd.type === 'pause') player.pauseVideo();
-      if (cmd.type === 'skip') playNext();
+      // A skip is for the song the guest saw; ignore it if that song is already gone (double / late skips)
+      if (cmd.type === 'skip' && (cmd.playId === undefined || cmd.playId === (current?.playId ?? null))) playNext();
     });
 
     // Queue display + auto-start when something is added while idle
@@ -175,6 +223,7 @@
       });
       $('#queue-count').textContent = snap.size ? `(${snap.size})` : '';
       $('#queue-empty').hidden = snap.size > 0;
+      $('#clear').hidden = snap.size === 0;
       if (started && idle && snap.size > 0) playNext();
     });
   </script>

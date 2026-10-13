@@ -16,7 +16,9 @@ Guest (index.html) ──► Firestore: jukebox/state + jukebox/state/queue ─�
 ```
 
 - Guests add queue docs and write a `cmd` (`play` / `pause` / `skip`) on `jukebox/state`.
-- Only the host removes songs from the queue, so guests never race each other.
+- Only the host takes songs off the queue to play them, so guests never race each other. (Guests can remove songs they added.)
+- Each now-playing song gets a `playId`; guest skips carry it, so a double or late skip doesn't also skip the next song.
+- The host saves the playback position every 10 s, so refreshing the host page resumes mid-song.
 - Search results are cached in `searches/{query}` for 24 h to save quota.
 
 ## Setup
@@ -52,6 +54,7 @@ For the host device:
 - Use **Chrome, logged in to YouTube Premium, in a normal tab with third-party cookies allowed**. Then the embedded player shows no ads. Incognito, or blocked third-party cookies, means ads.
 - **Keep the screen on.** Embedded YouTube stops when the screen turns off or the tab is hidden. The page requests a screen wake lock; a plugged-in laptop, tablet or TV browser works best.
 - Videos that can't be embedded are skipped automatically, with a notice shown to guests.
+- Keyboard on the host: **Space** or **K** play/pause, **N** skip.
 
 ## Local development
 

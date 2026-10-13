@@ -23,7 +23,7 @@
     --text: #f1efea;
     --muted: #9c978f;
     --border: #34312d;
-    --accent: #ef5a46;
+    --accent: #cf4430;
   }
 }
 
@@ -120,7 +120,7 @@ body.guest .top::after {
 /* ---- Lists ---- */
 .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 8px; min-height: 36px; }
 #results-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .song {
   display: flex; align-items: center; gap: 10px; min-height: 64px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 6px 6px 6px 8px;
@@ -168,30 +168,55 @@ body.host main { max-width: 1100px; padding-top: calc(var(--gutter) + var(--safe
   background: color-mix(in srgb, var(--bg) 92%, transparent);
 }
 .overlay[hidden] { display: none; }
-.player-wrap { aspect-ratio: 16 / 9; background: #000; border-radius: var(--radius); overflow: hidden; margin-bottom: 12px; }
+.player-wrap {
+  position: relative; aspect-ratio: 16 / 9; background: #000;
+  border-radius: var(--radius); overflow: hidden; margin-bottom: 12px;
+}
 .player-wrap iframe { display: block; width: 100%; height: 100%; }
+/* Covers the player when nothing is queued (hides the stale video and YouTube's own play button) */
+.idle {
+  position: absolute; inset: 0; display: grid; place-content: center; gap: .4em; padding: 1em; text-align: center;
+  background: var(--surface); color: var(--muted);
+}
+.idle[hidden] { display: none; }
+.idle-title { color: var(--text); font-size: 1.4em; font-weight: 600; }
+.idle-hint strong { color: var(--text); white-space: nowrap; }
 #clear { margin-top: 12px; }
 
-/* Host in landscape (phones on their side, tablets, laptops, TVs):
-   player + controls on the left sized to fit the screen height, queue scrolls on the right */
+/* Host in landscape (phones on their side, tablets, laptops, TVs): player + now-playing on the left,
+   sized to fit the screen height; queue scrolls on the right. Type scales with screen height so it
+   stays readable from across the room. */
 @media (orientation: landscape) and (min-width: 640px) {
   body.host main {
-    --chrome: calc(110px + var(--safe-top) + var(--safe-bottom)); /* paddings + gap + now-playing card */
-    --player-w: min(100%, calc((100vh - var(--chrome)) * 16 / 9));
+    font-size: clamp(16px, 2.2vh, 28px);
     max-width: none; height: 100vh; overflow: hidden;
     padding-bottom: calc(var(--gutter) + var(--safe-bottom));
-    display: grid; gap: 12px 16px; align-content: start;
+    display: grid; gap: 16px;
     grid-template-columns: minmax(0, 1fr) minmax(280px, 34%);
-    grid-template-rows: auto minmax(0, 1fr);
   }
-  @supports (height: 100dvh) {
-    body.host main { height: 100dvh; --player-w: min(100%, calc((100dvh - var(--chrome)) * 16 / 9)); }
+  @supports (height: 100dvh) { body.host main { height: 100dvh; } }
+
+  body.host .stage {
+    --card-h: calc(3em + 22px); /* fixed so the player can be sized from what's left */
+    --stage-w: min(100cqw, calc((100cqh - var(--card-h) - 12px) * 16 / 9));
+    container-type: size; min-height: 0;
+    display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px;
   }
-  body.host .player-wrap { grid-column: 1; grid-row: 1; margin: 0; width: var(--player-w); justify-self: center; }
-  body.host .now { grid-column: 1; grid-row: 2; width: var(--player-w); justify-self: center; align-self: start; }
-  body.host .queue-pane {
-    grid-column: 2; grid-row: 1 / -1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-    padding-bottom: 8px;
-  }
+  body.host .player-wrap { width: var(--stage-w); margin: 0; flex: none; }
+  body.host .now { width: var(--stage-w); height: var(--card-h); flex: none; }
+  body.host .now .title { font-size: 1.3em; -webkit-line-clamp: 1; }
+  body.host .now .meta, body.host .count { font-size: .85em; }
+  body.host .icon-btn { font-size: inherit; width: 2.75em; height: 2.75em; min-height: 2.75em; }
+  body.host .icon-btn .icon { width: 1.5em; height: 1.5em; }
+
+  body.host .queue-pane { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 8px; }
   body.host .queue-pane .section-head { margin-top: 0; }
+  body.host h2 { font-size: 1em; }
+  body.host .song { min-height: 4em; }
+  body.host .song img { width: 5em; }
+  body.host .song .pos { font-size: .85em; }
+  body.host .song .title { font-size: .95em; }
+  body.host .song .meta { font-size: .8em; }
+  body.host .empty { font-size: .9em; }
+  body.host #clear { font-size: .875em; min-height: 2.25em; }
 }
