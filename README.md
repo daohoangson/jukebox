@@ -5,6 +5,15 @@ A personal YouTube party jukebox. One device plays music; anyone with the link c
 - `index.html`: guest page (search, paste a link, queue, controls). This is what guests open at `hoangson.vn/jukebox`.
 - `host.html`: host page with the YouTube player. Open it on the device connected to the speaker.
 
+<p>
+  <img src="screenshots/guest-queue.png" width="22%" alt="Guest page on a phone: now playing, search box and four songs up next">
+  <img src="screenshots/host-playing.png" width="76%" alt="Host page on a laptop: the YouTube player, now-playing card and queue">
+</p>
+<p>
+  <img src="screenshots/host-start.png" width="49%" alt="Host start screen with the Start party button">
+  <img src="screenshots/host-song-menu.png" width="49%" alt="Host song menu with Play now, Play next and Remove from queue">
+</p>
+
 Static files only: GitHub Pages hosts them, Firestore syncs the queue in realtime, the YouTube IFrame Player plays, and the YouTube Data API searches. There is no server and no build step.
 
 ## How it works
