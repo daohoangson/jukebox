@@ -1,21 +1,17 @@
-/* Night party: ink-violet surfaces, a pink → violet neon accent, and the album art as ambient light */
+/* Charcoal surfaces with a solid golden-orange accent. */
 :root {
-  --bg: #f7f5fb;
-  --surface: #ffffff;
-  --surface-2: #efebf5;
-  --text: #1a1523;
-  --muted: #655e73;
-  --border: #e6e1ee;
-  --accent: #db2777;
-  --accent-2: #7c3aed;
-  --accent-grad: linear-gradient(135deg, var(--accent), var(--accent-2));  /* white text is 4.5:1+ across it */
-  --accent-text: #ffffff;
-  --accent-soft: #fce7f1;   /* tonal buttons: secondary actions */
-  --accent-ink: #be185d;    /* accent as text/icon/focus ring; 4.5:1+ on bg and accent-soft */
-  --field-border: #8f87a0;  /* 3:1 against surface, so inputs read as inputs */
-  --glow: 0 6px 20px color-mix(in srgb, var(--accent) 35%, transparent);
-  --shadow: 0 1px 2px rgb(26 21 35 / .06), 0 4px 16px rgb(26 21 35 / .06);
-  --art-opacity: .28;       /* how strongly the album art tints what's behind it */
+  --bg: #141414;
+  --surface: #222222;
+  --surface-2: #303030;
+  --text: #f5f5f4;
+  --muted: #a8a29e;
+  --border: #414141;
+  --accent: #f59e0b;
+  --accent-text: #141414;
+  --accent-soft: #3d2a14;
+  --accent-ink: #f59e0b;
+  --field-border: #828282;
+  --shadow: none;
   --display: "Righteous", system-ui, sans-serif;
   --ease-out: cubic-bezier(.2, .8, .2, 1);
   --dur-fast: .12s;
@@ -26,24 +22,8 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
-  color-scheme: light dark;
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d0b12;
-    --surface: #17141f;
-    --surface-2: #231f2d;
-    --text: #f4f1fa;
-    --muted: #a39cb2;
-    --border: #2a2536;
-    --accent-soft: #3a1a33;
-    --accent-ink: #ff7ab6;
-    --field-border: #6b6380;
-    --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px rgb(0 0 0 / .25);
-    --art-opacity: .55;
-  }
-}
-
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
@@ -61,14 +41,6 @@ main, .top {
   padding-right: calc(var(--gutter) + var(--safe-right));
 }
 main { padding-bottom: calc(96px + var(--safe-bottom)); }
-
-/* Party lights: two soft neon glows behind everything */
-body::before {
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background:
-    radial-gradient(60% 40% at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
-    radial-gradient(50% 35% at 100% 10%, color-mix(in srgb, var(--accent-2) 14%, transparent), transparent 70%);
-}
 
 h1 { font-size: 1.15rem; margin: 0; }
 h1.brand, .overlay h1 { font-family: var(--display); font-weight: 400; }
@@ -93,7 +65,7 @@ input:focus {
 ::selection { background: var(--accent-soft); }
 
 button {
-  background: var(--accent-grad); color: var(--accent-text); border: 0; border-radius: 12px; font-weight: 600;
+  background: var(--accent); color: var(--accent-text); border: 0; border-radius: 12px; font-weight: 600;
   padding: 10px 16px; cursor: pointer; min-height: 44px;
   touch-action: manipulation; user-select: none; -webkit-user-select: none;
   transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur) ease,
@@ -101,21 +73,18 @@ button {
 }
 button:active:not(:disabled) { transform: scale(.94); }
 button:disabled { opacity: .5; cursor: default; }
-.icon-btn:not(.ghost, .tonal) { box-shadow: var(--glow); }
 button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); font-weight: 500; }
 button.tonal { background: var(--accent-soft); color: var(--accent-ink); }
 button.tonal.done:disabled { opacity: 1; background: transparent; color: var(--muted); }
 @media (hover: hover) {
   button:hover:not(:disabled) { filter: brightness(1.08); }
   button.ghost:hover:not(:disabled) { filter: none; color: var(--text); border-color: var(--field-border); }
-  button.tonal:hover:not(:disabled) { filter: none; background: var(--accent-grad); color: var(--accent-text); }
+  button.tonal:hover:not(:disabled) { filter: none; background: var(--accent); color: var(--accent-text); }
 }
 button.small { min-height: 36px; padding: 6px 12px; font-size: 14px; }
 button.big {
   display: inline-flex; align-items: center; gap: 10px;
   font-size: 1.2rem; font-weight: 600; padding: 18px 36px 18px 28px; border-radius: 999px;
-  box-shadow: 0 10px 32px color-mix(in srgb, var(--accent) 45%, transparent),
-    0 4px 48px color-mix(in srgb, var(--accent-2) 35%, transparent);
 }
 button.big .icon { width: 28px; height: 28px; }
 button[hidden] { display: none; }
@@ -133,7 +102,7 @@ button[hidden] { display: none; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 1.4rem; letter-spacing: .01em; }
 .brand-mark {
   display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; flex: none;
-  background: var(--accent-grad); color: var(--accent-text); box-shadow: var(--glow);
+  background: var(--accent); color: var(--accent-text);
 }
 .brand-mark svg { width: 20px; height: 20px; fill: currentColor; }
 .brand-mark.big { width: 88px; height: 88px; border-radius: 28px; margin-bottom: 8px; }
@@ -145,10 +114,7 @@ button[hidden] { display: none; }
 .top {
   position: sticky; top: 0; z-index: 3;
   padding-top: calc(8px + var(--safe-top)); padding-bottom: 12px;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4);
-  /* Soft bottom edge instead of a hard line where the list scrolls under */
-  -webkit-mask-image: linear-gradient(#000 calc(100% - 10px), transparent); mask-image: linear-gradient(#000 calc(100% - 10px), transparent);
+  background: var(--bg);
 }
 
 .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-bottom: 8px; }
@@ -164,13 +130,6 @@ button[hidden] { display: none; }
 .now img {
   width: 64px; height: 64px; object-fit: cover; border-radius: 12px; flex: none; background: var(--surface-2);
   box-shadow: 0 4px 14px rgb(0 0 0 / .3);
-}
-/* Ambient light: the current album art, blurred behind the card (set as --art from the song's thumbnail) */
-.now::before {
-  content: ""; position: absolute; inset: -40px; z-index: -1; pointer-events: none;
-  background: var(--art, none) center / cover;
-  filter: blur(36px) saturate(1.6); opacity: var(--art-opacity);
-  transition: opacity .6s ease;
 }
 .now img.placeholder { visibility: hidden; width: 0; margin-right: -12px; }
 .now .info { flex: 1; min-width: 0; }
@@ -197,7 +156,7 @@ button[hidden] { display: none; }
 .now { position: relative; overflow: hidden; }
 .progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--surface-2); }
 .progress > div {
-  height: 100%; background: var(--accent-grad); transform: scaleX(0); transform-origin: left;
+  height: 100%; background: var(--accent); transform: scaleX(0); transform-origin: left;
   transition: transform .5s linear;
 }
 .time { font-variant-numeric: tabular-nums; }
@@ -277,7 +236,7 @@ dialog {
   background: var(--surface); color: var(--text);
   width: min(360px, calc(100% - 32px));
 }
-dialog::backdrop { background: rgb(13 11 18 / .55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+dialog::backdrop { background: rgb(0 0 0 / .55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 dialog[open] { animation: dialog-in var(--dur) var(--ease-out); }
 @keyframes dialog-in { from { opacity: 0; transform: translateY(8px) scale(.97); } }
 dialog h2 { font-size: 1.1rem; margin-bottom: 4px; }
@@ -289,17 +248,9 @@ body.host main { max-width: 1100px; padding-top: calc(var(--gutter) + var(--safe
 .overlay {
   position: fixed; inset: 0; z-index: 5; display: grid; place-content: center; justify-items: center; gap: 8px;
   padding: 16px; text-align: center;
-  background:
-    radial-gradient(40% 50% at 30% 35%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 70%),
-    radial-gradient(40% 50% at 70% 60%, color-mix(in srgb, var(--accent-2) 30%, transparent), transparent 70%),
-    var(--bg);
-  background-size: 140% 140%;
-  animation: lights 12s ease-in-out infinite alternate;
+  background: var(--bg);
 }
-@keyframes lights { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
 .overlay h1 { font-size: clamp(2.5rem, 7vw, 4rem); letter-spacing: .01em; line-height: 1.1; }
-.overlay .brand-mark.big { animation: bob 2.4s ease-in-out infinite; }
-@keyframes bob { 50% { transform: translateY(-6px) rotate(-3deg); } }
 .overlay .meta { font-size: 1rem; margin: 0; }
 .overlay .meta strong { color: var(--text); }
 .overlay button { margin: 20px 0 4px; }
@@ -313,10 +264,7 @@ body.host main { max-width: 1100px; padding-top: calc(var(--gutter) + var(--safe
 /* Covers the player when nothing is queued (hides the stale video and YouTube's own play button) */
 .idle {
   position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: .4em; padding: 1em; text-align: center;
-  background:
-    radial-gradient(60% 70% at 20% 10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent),
-    radial-gradient(60% 70% at 85% 90%, color-mix(in srgb, var(--accent-2) 22%, transparent), transparent),
-    var(--surface);
+  background: var(--surface);
   color: var(--muted);
 }
 .idle .brand-mark { width: 3.5em; height: 3.5em; border-radius: 1.1em; margin-bottom: .4em; }
@@ -336,14 +284,6 @@ body.host main { max-width: 1100px; padding-top: calc(var(--gutter) + var(--safe
   line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
 .menu-actions { display: grid; gap: 8px; margin-top: 16px; }
-/* Host ambient light: the current album art fills the room behind the player */
-body.host.has-art::before {
-  background: var(--art) center / cover;
-  filter: blur(80px) saturate(1.5); opacity: var(--art-opacity); transform: scale(1.2);
-}
-/* Over the ambient light, cards turn slightly see-through so its color shows */
-body.host .card, body.host .song { background: color-mix(in srgb, var(--surface) 78%, transparent); }
-
 /* Host in landscape (phones on their side, tablets, laptops, TVs): player + now-playing on the left,
    sized to fit the screen height; queue scrolls on the right. Type scales with screen height so it
    stays readable from across the room. */
