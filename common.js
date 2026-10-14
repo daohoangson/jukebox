@@ -1,5 +1,5 @@
 import { YT_API_KEY } from './config.js';
-import { searchesRef, doc, getDoc, setDoc } from './firebase.js';
+import { searchesRef, doc, getDoc, setDoc, deleteDoc } from './firebase.js';
 
 export const $ = (sel) => document.querySelector(sel);
 
@@ -30,6 +30,13 @@ export function toast(text, action) {
   region.replaceChildren(el('div', { className: 'toast' }, el('span', { textContent: text }), button));
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => region.replaceChildren(), action ? 6000 : 3500);
+}
+
+/** Remove a queue doc, with Undo: it goes back under the same ID and createdAt, so it returns to its old spot. */
+export async function removeSong(d) {
+  const song = d.data();
+  await deleteDoc(d.ref);
+  toast('Removed from queue', { label: 'Undo', onclick: () => setDoc(d.ref, song) });
 }
 
 export function youtubeId(input) {
@@ -118,6 +125,7 @@ const ICONS = {
   search: 'M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z',
   music: 'M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z',
+  more: 'M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
 };
 
 /** Inline SVG icon (static paths only, so innerHTML is safe here). */

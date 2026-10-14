@@ -325,6 +325,17 @@ body.host main { max-width: 1100px; padding-top: calc(var(--gutter) + var(--safe
 .idle-title { color: var(--text); font-family: var(--display); font-size: 1.8em; }
 .idle-hint strong { color: var(--text); white-space: nowrap; }
 #clear { margin-top: 12px; }
+/* Host queue rows open the song menu: the whole row is the button's hit area */
+.song:has(.row-btn) { position: relative; cursor: pointer; transition: border-color var(--dur) ease, transform var(--dur-fast) var(--ease-out); }
+.row-btn::after { content: ""; position: absolute; inset: 0; }
+/* Press the row, not the button: scaling the button would shrink its hit area mid-click and lose the click */
+.row-btn:active:not(:disabled) { transform: none; }
+.song:has(.row-btn:active) { transform: scale(.98); }
+@media (hover: hover) { .song:has(.row-btn:hover) { border-color: var(--field-border); } }
+.menu-title {
+  line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.menu-actions { display: grid; gap: 8px; margin-top: 16px; }
 /* Host ambient light: the current album art fills the room behind the player */
 body.host.has-art::before {
   background: var(--art) center / cover;
@@ -370,6 +381,8 @@ body.host .card, body.host .song { background: color-mix(in srgb, var(--surface)
   body.host .song .meta { font-size: .8em; }
   body.host .empty { font-size: .9em; }
   body.host #clear { font-size: .875em; min-height: 2.25em; }
+  body.host dialog { font-size: clamp(16px, 2.2vh, 28px); width: min(24em, calc(100% - 32px)); }
+  body.host dialog button { font-size: inherit; min-height: 2.75em; }
 }
 
 /* Less motion when asked: no bouncing, pulsing or scaling; state still shows through color and shape */

@@ -55,7 +55,7 @@
     </section>
   </main>
 
-  <dialog id="name-dialog">
+  <dialog id="name-dialog" aria-labelledby="name-title">
     <form method="dialog">
       <h2 id="name-title">What's your name?</h2>
       <p class="meta">Shown next to the songs you add.</p>
@@ -68,10 +68,10 @@
   </dialog>
 
   <script type="module">
-    import { stateRef, queueRef, onSnapshot, addDoc, deleteDoc, setDoc, query, orderBy, serverTimestamp } from './firebase.js';
+    import { stateRef, queueRef, onSnapshot, addDoc, setDoc, query, orderBy, serverTimestamp } from './firebase.js';
     import {
       $, el, toast, youtubeId, songFromLink, search, searchEnabled, songRow, formatDuration, icon, iconButton, setIcon,
-      equalizer, skeletonRows, setArt,
+      equalizer, skeletonRows, setArt, removeSong,
     } from './common.js';
 
     // ---- Name (asked once, remembered per device) ----
@@ -145,20 +145,13 @@
         return songRow(song, {
           position: i + 1,
           meta: [mine ? 'You' : song.addedBy, formatDuration(song.duration)].filter(Boolean).join(' · '),
-          action: mine ? iconButton('close', `Remove ${song.title}`, { className: 'icon-btn ghost', onclick: () => remove(d) }) : null,
+          action: mine ? iconButton('close', `Remove ${song.title}`, { className: 'icon-btn ghost', onclick: () => removeSong(d) }) : null,
         });
       }));
       $('#queue-count').textContent = queueDocs.length ? `(${queueDocs.length})` : '';
       $('#queue-empty').hidden = queueDocs.length > 0;
     }
     onSnapshot(query(queueRef, orderBy('createdAt')), (snap) => { queueDocs = snap.docs; renderQueue(); renderResults(); });
-
-    // Put it back under the same ID and createdAt, so it returns to its old spot in the queue
-    async function remove(d) {
-      const song = d.data();
-      await deleteDoc(d.ref);
-      toast('Removed from queue', { label: 'Undo', onclick: () => setDoc(d.ref, song) });
-    }
 
     async function enqueue(song) {
       const addedBy = await nameForSong();

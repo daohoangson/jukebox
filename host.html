@@ -52,11 +52,25 @@
     </section>
   </main>
 
+  <dialog id="song-menu" aria-labelledby="song-menu-title">
+    <form method="dialog">
+      <h2 id="song-menu-title" class="menu-title"></h2>
+      <p id="song-menu-meta" class="meta"></p>
+      <div class="menu-actions">
+        <button value="now">Play now</button>
+        <button value="next" id="song-menu-next" class="tonal">Play next</button>
+        <button value="remove" class="ghost">Remove from queue</button>
+        <button value="" class="ghost">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
   <script type="module">
     import {
-      stateRef, queueRef, onSnapshot, getDoc, getDocs, deleteDoc, setDoc, query, orderBy, limit, writeBatch, db, usingEmulator,
+      stateRef, queueRef, onSnapshot, getDoc, getDocs, deleteDoc, setDoc, updateDoc, query, orderBy, limit, writeBatch, db,
+      usingEmulator, Timestamp,
     } from './firebase.js';
-    import { $, toast, songRow, formatDuration, iconButton, setIcon, setArt } from './common.js';
+    import { $, toast, songRow, formatDuration, iconButton, setIcon, setArt, removeSong } from './common.js';
 
     if (usingEmulator) toast('Using local Firestore emulator');
 
@@ -70,6 +84,7 @@
     const showPlaying = (on) => setIcon(toggleBtn, on ? 'pause' : 'play', on ? 'Pause' : 'Play');
 
     let player, playerReady = false, started = false, idle = true, busy = false, queueSize = 0, lastCmd;
+    let queueDocs = [];
     let current = null; // song being played, including its playId
 
     const setState = (data) => setDoc(stateRef, data, { merge: true });
@@ -139,13 +154,13 @@
     }, 500);
 
     // Only the host takes songs off the queue, so there are no races between guests.
-    async function playNext() {
+    // `pick` is a queue doc to play instead of the oldest one (the host's Play now).
+    async function playNext(pick) {
       if (busy || !playerReady) return;
       busy = true;
       try {
-        const snap = await getDocs(query(queueRef, orderBy('createdAt'), limit(1)));
-        if (snap.empty) { await stop(); return; }
-        const next = snap.docs[0];
+        const next = pick ?? (await getDocs(query(queueRef, orderBy('createdAt'), limit(1)))).docs[0];
+        if (!next) { await stop(); return; }
         const { createdAt, ...rest } = next.data();
         const song = { ...rest, playId: crypto.randomUUID() }; // guests tag skips with this
         await deleteDoc(next.ref);
@@ -207,9 +222,42 @@
       await batch.commit();
     };
 
+    // Host queue menu: play a song now, move it to the front, or remove it
+    const menu = $('#song-menu');
+    let menuDoc;
+    function openMenu(d) {
+      const song = d.data();
+      menuDoc = d;
+      $('#song-menu-title').textContent = song.title;
+      $('#song-menu-meta').textContent = [song.addedBy, formatDuration(song.duration)].filter(Boolean).join(' · ');
+      $('#song-menu-next').hidden = queueDocs[0]?.id === d.id; // already next
+      menu.returnValue = '';
+      menu.showModal();
+    }
+    menu.addEventListener('close', async () => {
+      const d = menuDoc;
+      try {
+        if (menu.returnValue === 'now') await playNext(d);
+        if (menu.returnValue === 'next') await playSoon(d);
+        if (menu.returnValue === 'remove') await removeSong(d);
+      } catch (err) {
+        console.error(err);
+        toast(`Error: ${err.message}`);
+      }
+    });
+
+    // The queue is ordered by createdAt, so moving a song to the front means dating it just before the first one
+    async function playSoon(d) {
+      const first = queueDocs[0]?.data().createdAt;
+      if (!first) return;
+      await updateDoc(d.ref, { createdAt: Timestamp.fromMillis(first.toMillis() - 1) });
+      toast('Playing next');
+    }
+
     // Keyboard: Space / K = play-pause, N = skip (when the host is a laptop)
     document.addEventListener('keydown', (e) => {
       if (!started || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      if (menu.open) return;
       if (e.target.closest('input, textarea')) return;
       const key = e.key.toLowerCase();
       if (key === ' ' && e.target.closest('button, a')) return; // Space already activates the focused control
@@ -236,12 +284,12 @@
     // Queue display + auto-start when something is added while idle
     onSnapshot(query(queueRef, orderBy('createdAt')), (snap) => {
       queueSize = snap.size;
-      const list = $('#queue');
-      list.replaceChildren();
-      snap.docs.forEach((d, i) => {
+      queueDocs = snap.docs;
+      $('#queue').replaceChildren(...snap.docs.map((d, i) => {
         const song = d.data();
-        list.append(songRow(song, { position: i + 1, meta: [song.addedBy, formatDuration(song.duration)].filter(Boolean).join(' · ') }));
-      });
+        const more = iconButton('more', `Options for ${song.title}`, { className: 'icon-btn ghost row-btn', onclick: () => openMenu(d) });
+        return songRow(song, { position: i + 1, meta: [song.addedBy, formatDuration(song.duration)].filter(Boolean).join(' · '), action: more });
+      }));
       $('#queue-count').textContent = snap.size ? `(${snap.size})` : '';
       $('#queue-empty').hidden = snap.size > 0;
       $('#clear').hidden = snap.size === 0;
